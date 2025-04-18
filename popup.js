@@ -2,58 +2,103 @@
 let inspectorEnabled = false;
 
 // Initialize the UI based on stored state
-chrome.storage.local.get(['inspectorEnabled'], function (result) {
-    inspectorEnabled = result.inspectorEnabled || false;
-    updateUI();
-});
+document.addEventListener('DOMContentLoaded', function () {
+    // Check which buttons exist to determine which HTML version we're using
+    const hasEnableInspector = document.getElementById('enableInspector') !== null;
+    const hasCheckAllImages = document.getElementById('checkAllImages') !== null;
+    const hasCheckImages = document.getElementById('checkImages') !== null;
 
-// Toggle inspector mode
-document.getElementById('enableInspector').addEventListener('change', async (e) => {
-    inspectorEnabled = e.target.checked;
-
-    // Save state
-    chrome.storage.local.set({ inspectorEnabled });
-    updateUI();
-
-    // Apply changes to current tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (inspectorEnabled) {
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['inspectorMode.js']
-        });
-    } else {
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: disableInspectorMode
-        });
+    // Initialize for the modern UI
+    if (hasEnableInspector && hasCheckAllImages) {
+        initializeModernUI();
+    }
+    // Initialize for the simple UI
+    else if (hasCheckImages) {
+        initializeSimpleUI();
     }
 });
 
-// Show details for all images on the page
-document.getElementById('checkAllImages').addEventListener('click', async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['imageDetails.js']
+// Initialize the modern UI with toggle switch
+function initializeModernUI() {
+    // Get stored state
+    chrome.storage.local.get(['inspectorEnabled'], function (result) {
+        inspectorEnabled = result.inspectorEnabled || false;
+        updateUI();
     });
-    window.close();
-});
 
-// Clear all details from the page
-document.getElementById('clearDetails').addEventListener('click', async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        function: clearImageDetails
+    // Toggle inspector mode
+    document.getElementById('enableInspector').addEventListener('change', async (e) => {
+        inspectorEnabled = e.target.checked;
+
+        // Save state
+        chrome.storage.local.set({ inspectorEnabled });
+        updateUI();
+
+        // Apply changes to current tab
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (inspectorEnabled) {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['inspectorMode.js']
+            });
+        } else {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                function: disableInspectorMode
+            });
+        }
     });
-    window.close();
-});
+
+    // Show details for all images on the page
+    document.getElementById('checkAllImages').addEventListener('click', async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['imageDetails.js']
+        });
+        window.close();
+    });
+
+    // Clear all details from the page
+    document.getElementById('clearDetails').addEventListener('click', async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: clearImageDetails
+        });
+        window.close();
+    });
+}
+
+// Initialize the simple UI with just buttons
+function initializeSimpleUI() {
+    document.getElementById('checkImages').addEventListener('click', async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['imageDetails.js']
+        });
+        // Close the popup after clicking for better UX
+        window.close();
+    });
+
+    document.getElementById('clearDetails').addEventListener('click', async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: clearImageDetails
+        });
+        // Close the popup after clicking for better UX
+        window.close();
+    });
+}
 
 // Update UI based on current state
 function updateUI() {
     const checkbox = document.getElementById('enableInspector');
     const statusText = document.getElementById('status');
+
+    if (!checkbox || !statusText) return;
 
     checkbox.checked = inspectorEnabled;
 
@@ -82,7 +127,9 @@ function disableInspectorMode() {
     });
 
     // Remove global click handler
-    document.removeEventListener('click', window.documentClickHandler);
+    if (window.documentClickHandler) {
+        document.removeEventListener('click', window.documentClickHandler);
+    }
 
     // Remove styles
     const styleElement = document.getElementById('image-inspector-styles');
@@ -143,61 +190,6 @@ function clearImageDetails() {
 
     document.body.appendChild(notification);
 
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => notification.remove(), 500);
-    }, 2000);
-} document.getElementById('checkImages').addEventListener('click', async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['imageDetails.js']
-    });
-    // Close the popup after clicking for better UX
-    window.close();
-});
-
-document.getElementById('clearDetails').addEventListener('click', async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        function: clearImageDetails
-    });
-    // Close the popup after clicking for better UX
-    window.close();
-});
-
-function clearImageDetails() {
-    const overlays = document.querySelectorAll('.image-details-overlay');
-
-    // Add a small fade-out animation for smoother UX
-    overlays.forEach(overlay => {
-        overlay.style.transition = 'opacity 0.3s';
-        overlay.style.opacity = '0';
-        setTimeout(() => overlay.remove(), 300);
-    });
-
-    // Create and show a notification
-    const notification = document.createElement('div');
-    notification.textContent = 'Image details cleared';
-    Object.assign(notification.style, {
-        position: 'fixed',
-        top: '10px',
-        right: '10px',
-        padding: '8px 12px',
-        backgroundColor: '#4285f4',
-        color: 'white',
-        borderRadius: '4px',
-        zIndex: '10000',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '14px',
-        transition: 'opacity 0.5s',
-        opacity: '1'
-    });
-
-    document.body.appendChild(notification);
-
-    // Make the notification disappear after 2 seconds
     setTimeout(() => {
         notification.style.opacity = '0';
         setTimeout(() => notification.remove(), 500);

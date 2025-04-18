@@ -31,7 +31,6 @@ const styleElement = document.createElement('style');
 styleElement.id = 'image-inspector-styles';
 styleElement.textContent = `
     .image-inspector-hover {
-      cursor: pointer !important;
       outline: 2px dashed rgba(66, 133, 244, 0.6) !important;
       outline-offset: 2px !important;
     }
@@ -43,6 +42,8 @@ const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.heif', '.he
 
 // Function to check if URL contains a valid image extension (handles query parameters)
 function checkValidImageUrl(url) {
+    if (!url) return false;
+
     // Remove query parameters and hash for checking extensions
     const baseUrl = url.split('?')[0].split('#')[0];
 
@@ -50,11 +51,15 @@ function checkValidImageUrl(url) {
     return validExtensions.some(ext => baseUrl.toLowerCase().endsWith(ext));
 }
 
+// Current active overlay element
+let currentOverlay = null;
+
 // Function to create and show an overlay for an image
 function showImageDetails(img, event) {
-    // Stop propagation to prevent document click from immediately removing the overlay
+    // Stop event propagation to ensure it doesn't trigger parent elements
     if (event) {
         event.stopPropagation();
+        event.preventDefault();
     }
 
     // Clear any existing overlays first
@@ -136,8 +141,7 @@ function showImageDetails(img, event) {
     // Add a connector line between border and info box if they're separated
     if (infoBox.style.top === '100%' || infoBox.style.bottom === '100%') {
         const connector = document.createElement('div');
-        Object.assign(connector
-            .style, {
+        Object.assign(connector.style, {
             position: 'absolute',
             backgroundColor: borderColor,
             width: '2px',
@@ -189,6 +193,9 @@ function showImageDetails(img, event) {
 
     // Add overlay container to the document
     document.body.appendChild(overlayContainer);
+
+    // Store current overlay reference
+    currentOverlay = overlayContainer;
 }
 
 // Helper function to format aspect ratio as X:Y
@@ -209,19 +216,43 @@ function formatAspectRatio(width, height) {
     return `${width / divisor}:${height / divisor}`;
 }
 
-// Function to handle clicking on an image
-window.imageInspectorClickHandler = function (event) {
-    showImageDetails(this, event);
-};
-
-// Function to handle hovering over an image
-window.imageInspectorHoverHandler = function () {
+// Function to handle mouse hovering over an image - now shows details
+window.imageInspectorHoverHandler = function (event) {
+    // Add highlight class for visual feedback
     this.classList.add('image-inspector-hover');
+
+    // Show image details on hover instead of click
+    showImageDetails(this, event);
 };
 
 // Function to handle mouse leaving an image
 window.imageInspectorOutHandler = function () {
     this.classList.remove('image-inspector-hover');
+
+    // Remove overlay when mouse leaves the image
+    if (currentOverlay) {
+        currentOverlay.remove();
+        currentOverlay = null;
+    }
+};
+
+// Capture click events on the entire document
+window.imageInspectorClickHandler = function (event) {
+    // For linked images, we'll want to intercept clicks in some cases
+    const img = this;
+    const parentAnchor = img.closest('a');
+
+    if (parentAnchor) {
+        // If the image is in a link, show details on click and prevent navigation
+        event.preventDefault();
+        event.stopPropagation();
+        showImageDetails(img, event);
+
+        return false;
+    }
+
+    // For non-linked images, just show details
+    showImageDetails(img, event);
 };
 
 // Attach events to all images on the page
@@ -232,9 +263,12 @@ document.querySelectorAll('img').forEach(img => {
     const hasValidExtension = checkValidImageUrl(src) || src.startsWith('data:image/');
 
     if (hasValidExtension) {
-        img.addEventListener('click', window.imageInspectorClickHandler);
+        // Use hover instead of click for showing details
         img.addEventListener('mouseover', window.imageInspectorHoverHandler);
         img.addEventListener('mouseout', window.imageInspectorOutHandler);
+
+        // Still keep click handler for hyperlinked images
+        img.addEventListener('click', window.imageInspectorClickHandler);
     }
 });
 
@@ -255,7 +289,7 @@ document.addEventListener('click', window.documentClickHandler);
 
 // Show a notification that inspector mode is active
 const notification = document.createElement('div');
-notification.textContent = 'Image inspector mode activated';
+notification.textContent = 'Image inspector mode activated (hover over images)';
 Object.assign(notification.style, {
     position: 'fixed',
     top: '10px',
