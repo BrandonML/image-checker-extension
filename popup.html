@@ -1,38 +1,185 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <title>Image Details Overlay</title>
-  <style>
-    body {
-      width: 200px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
-    }
-    button {
-      width: 100%;
-      margin: 5px 0;
-      padding: 8px;
-      background-color: #4285f4;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    button:hover {
-      background-color: #3367d6;
-    }
-    h2 {
-      margin-top: 0;
-      font-size: 16px;
-      text-align: center;
-    }
-  </style>
+    <title>Image Details Overlay</title>
+    <style>
+        body {
+            width: 220px;
+            padding: 12px;
+            font-family: Arial, sans-serif;
+        }
+
+        button {
+            width: 100%;
+            margin: 6px 0;
+            padding: 10px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #3367d6;
+        }
+
+        button.active {
+            background-color: #34a853;
+        }
+
+        button.inactive {
+            background-color: #d93025;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .toggle-label {
+            flex-grow: 1;
+            font-size: 14px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 46px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #34a853;
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px #34a853;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(22px);
+        }
+
+        .status {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 8px;
+            color: #5f6368;
+        }
+
+        .divider {
+            height: 1px;
+            background-color: #dadce0;
+            margin: 12px 0;
+        }
+    </style>
 </head>
+
 <body>
-  <h2>Image Details</h2>
-  <button id="checkImages">Check Images</button>
-  <button id="clearDetails">Clear Image Details</button>
-  <script src="popup.js"></script>
+    <h2>Image Details Inspector</h2>
+
+    <div class="toggle-container">
+        <span class="toggle-label">Enable Inspector Mode</span>
+        <label class="switch">
+            <input type="checkbox" id="enableInspector">
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <div class="status" id="status">Click to toggle inspector mode</div>
+
+    <div class="divider"></div>
+
+    <button id="checkAllImages">Show All Image Details</button>
+    <button id="clearDetails">Clear All Details</button>
+
+    <script src="popup.js"></script>
 </body>
+
+</html>
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Image Details Overlay</title>
+    <style>
+        body {
+            width: 200px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+        }
+
+        button {
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background-color: #3367d6;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 16px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Image Details</h2>
+    <button id="checkImages">Check Images</button>
+    <button id="clearDetails">Clear Image Details</button>
+    <script src="popup.js"></script>
+</body>
+
 </html>

@@ -35,50 +35,147 @@
       return;
     }
 
-    // Create overlay element
-    const overlay = document.createElement('div');
-    overlay.className = 'image-details-overlay';
+    // Create overlay container and elements
+    const overlayContainer = document.createElement('div');
+    overlayContainer.className = 'image-details-overlay';
 
-    // Position the overlay relative to the image
+    // Overlay will consist of a highlight border and an info box
+    const highlightBorder = document.createElement('div');
+    const infoBox = document.createElement('div');
+
+    // Position everything relative to the image
     const imgRect = img.getBoundingClientRect();
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
-    // Style the overlay
-    Object.assign(overlay.style, {
+    // Generate a unique color for this overlay (to visually connect border and info box)
+    const hue = Math.floor(Math.random() * 360);
+    const borderColor = `hsla(${hue}, 100%, 50%, 0.8)`;
+    const backgroundColor = `hsla(${hue}, 100%, 25%, 0.9)`;
+
+    // Style the container
+    Object.assign(overlayContainer.style, {
       position: 'absolute',
       top: `${imgRect.top + scrollTop}px`,
       left: `${imgRect.left + scrollLeft}px`,
       width: `${imgRect.width}px`,
+      height: `${imgRect.height}px`,
+      pointerEvents: 'none',
+      zIndex: '9999'
+    });
+
+    // Style the highlight border that goes around the image
+    Object.assign(highlightBorder.style, {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      border: `3px solid ${borderColor}`,
+      pointerEvents: 'none',
+      zIndex: '9999'
+    });
+
+    // Style the info box that contains the text
+    Object.assign(infoBox.style, {
+      position: 'absolute',
+      top: '0',
+      left: '0',
       padding: '5px',
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      backgroundColor,
       color: 'white',
       fontSize: '12px',
-      zIndex: '9999',
-      pointerEvents: 'none',
-      borderRadius: '3px',
       fontFamily: 'monospace',
-      whiteSpace: 'pre-wrap'
+      whiteSpace: 'pre-wrap',
+      borderRadius: '3px',
+      pointerEvents: 'none',
+      zIndex: '10000',
+      boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+      maxWidth: '100%'
     });
+
+    // Reposition the info box based on available space
+    // Try to position it where it won't overlap other elements as much
+    if (imgRect.top > 100) {
+      // If there's room above the image
+      infoBox.style.bottom = '100%';
+      infoBox.style.top = 'auto';
+      infoBox.style.marginBottom = '5px';
+    } else if (document.documentElement.clientHeight - (imgRect.bottom + scrollTop) > 100) {
+      // If there's room below the image
+      infoBox.style.top = '100%';
+      infoBox.style.marginTop = '5px';
+    }
+
+    // Add a connector line between border and info box if they're separated
+    if (infoBox.style.top === '100%' || infoBox.style.bottom === '100%') {
+      const connector = document.createElement('div');
+      Object.assign(connector.style, {
+        position: 'absolute',
+        backgroundColor: borderColor,
+        width: '2px',
+        height: '5px',
+        left: '10px',
+        zIndex: '9999'
+      });
+
+      if (infoBox.style.top === '100%') {
+        connector.style.top = '100%';
+      } else {
+        connector.style.bottom = '100%';
+      }
+
+      overlayContainer.appendChild(connector);
+    }
 
     // Get intrinsic dimensions (natural dimensions of the image)
     const intrinsicWidth = img.naturalWidth;
     const intrinsicHeight = img.naturalHeight;
-    const intrinsicAspectRatio = (intrinsicWidth / intrinsicHeight).toFixed(2);
+
+    // Calculate both decimal and ratio format for aspect ratios
+    const intrinsicDecimalRatio = (intrinsicWidth / intrinsicHeight);
+    const intrinsicRatioText = formatAspectRatio(intrinsicWidth, intrinsicHeight);
 
     // Get rendered dimensions (how the image appears on the page)
     const renderedWidth = Math.round(imgRect.width);
     const renderedHeight = Math.round(imgRect.height);
-    const renderedAspectRatio = (renderedWidth / renderedHeight).toFixed(2);
+
+    const renderedDecimalRatio = (renderedWidth / renderedHeight);
+    const renderedRatioText = formatAspectRatio(renderedWidth, renderedHeight);
 
     // Create the details text
-    overlay.innerHTML = `
-    <div style="margin-bottom: 3px">Intrinsic: ${intrinsicWidth}×${intrinsicHeight} (${intrinsicAspectRatio})</div>
-    <div>Rendered: ${renderedWidth}×${renderedHeight} (${renderedAspectRatio})</div>
+    infoBox.innerHTML = `
+    <div style="margin-bottom: 3px">Intrinsic: ${intrinsicWidth}×${intrinsicHeight}</div>
+    <div style="margin-bottom: 3px">Aspect ratio: ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
+    <div style="margin-bottom: 3px">Rendered: ${renderedWidth}×${renderedHeight}</div>
+    <div>Aspect ratio: ${renderedRatioText} (${renderedDecimalRatio.toFixed(2)})</div>
   `;
 
-    // Add overlay to the document
-    document.body.appendChild(overlay);
+    // Add elements to the container
+    overlayContainer.appendChild(highlightBorder);
+    overlayContainer.appendChild(infoBox);
+
+    // Add overlay container to the document
+    document.body.appendChild(overlayContainer);
+
+    // Helper function to format aspect ratio as X:Y
+    function formatAspectRatio(width, height) {
+      if (width === 0 || height === 0) return "N/A";
+
+      // Find the greatest common divisor (GCD)
+      const gcd = (a, b) => {
+        while (b !== 0) {
+          const temp = b;
+          b = a % b;
+          a = temp;
+        }
+        return a;
+      };
+
+      const divisor = gcd(width, height);
+      return `${width / divisor}:${height / divisor}`;
+    }
   });
 
   // Add a small notification that the feature is active

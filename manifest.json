@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Image Details Overlay",
+  "name": "Image Details Inspector",
   "version": "1.0",
-  "description": "Displays intrinsic and rendered dimensions and aspect ratios for images on a webpage",
+  "description": "Inspect image dimensions and aspect ratios with an interactive overlay",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -11,7 +11,11 @@
       "128": "icons/icon128.png"
     }
   },
-  "permissions": ["activeTab", "scripting"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
