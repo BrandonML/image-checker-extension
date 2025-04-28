@@ -118,7 +118,8 @@ function showImageDetails(img, event) {
         color: 'white',
         fontSize: '12px',
         fontFamily: 'monospace',
-        whiteSpace: 'pre-wrap',
+        textAlign: 'left',
+        whiteSpace: 'normal',
         borderRadius: '4px',
         pointerEvents: 'none',
         zIndex: '10000',
@@ -181,9 +182,11 @@ function showImageDetails(img, event) {
     // Create the details text
     infoBox.innerHTML = `
       <div style="margin-bottom: 5px"><strong>File:</strong> ${fileName || 'N/A'}</div>
-      <div style="margin-bottom: 3px"><strong>Intrinsic:</strong> ${intrinsicWidth}×${intrinsicHeight}</div>
-      <div style="margin-bottom: 3px"><strong>Aspect ratio:</strong> ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
-      <div style="margin-bottom: 3px"><strong>Rendered:</strong> ${renderedWidth}×${renderedHeight}</div>
+      <br/>
+      <div style="margin-bottom: 5px"><strong>Intrinsic:</strong> ${intrinsicWidth}×${intrinsicHeight}</div>
+      <div style="margin-bottom: 5px"><strong>Aspect ratio:</strong> ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
+      <br/>
+      <div style="margin-bottom: 5px"><strong>Rendered:</strong> ${renderedWidth}×${renderedHeight}</div>
       <div><strong>Aspect ratio:</strong> ${renderedRatioText} (${renderedDecimalRatio.toFixed(2)})</div>
     `;
 

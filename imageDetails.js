@@ -87,7 +87,8 @@
       color: 'white',
       fontSize: '12px',
       fontFamily: 'monospace',
-      whiteSpace: 'pre-wrap',
+      textAlign: 'left',
+      whiteSpace: 'normal',
       borderRadius: '3px',
       pointerEvents: 'none',
       zIndex: '10000',
@@ -146,9 +147,10 @@
 
     // Create the details text
     infoBox.innerHTML = `
-    <div style="margin-bottom: 3px">Intrinsic: ${intrinsicWidth}×${intrinsicHeight}</div>
-    <div style="margin-bottom: 3px">Aspect ratio: ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
-    <div style="margin-bottom: 3px">Rendered: ${renderedWidth}×${renderedHeight}</div>
+    <div style="margin-bottom: 5px">Intrinsic: ${intrinsicWidth}×${intrinsicHeight}</div>
+    <div style="margin-bottom: 5px">Aspect ratio: ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
+    <br>
+    <div style="margin-bottom: 5px">Rendered: ${renderedWidth}×${renderedHeight}</div>
     <div>Aspect ratio: ${renderedRatioText} (${renderedDecimalRatio.toFixed(2)})</div>
   `;
 
