@@ -1,31 +1,3 @@
-// First, let's remove any existing inspector elements
-function cleanup() {
-    // Remove any existing overlays
-    const overlays = document.querySelectorAll('.image-details-overlay');
-    overlays.forEach(overlay => overlay.remove());
-
-    // Remove previous event listeners
-    document.querySelectorAll('img').forEach(img => {
-        img.style.cursor = '';
-        img.classList.remove('image-inspector-hover');
-        img.removeEventListener('click', window.imageInspectorClickHandler);
-        img.removeEventListener('mouseover', window.imageInspectorHoverHandler);
-        img.removeEventListener('mouseout', window.imageInspectorOutHandler);
-    });
-
-    // Remove previous global click handler
-    if (window.documentClickHandler) {
-        document.removeEventListener('click', window.documentClickHandler);
-    }
-
-    // Remove previous styles
-    const styleElement = document.getElementById('image-inspector-styles');
-    if (styleElement) styleElement.remove();
-}
-
-// Cleanup first
-cleanup();
-
 // Add custom styles for hover effects
 const styleElement = document.createElement('style');
 styleElement.id = 'image-inspector-styles';
@@ -289,28 +261,3 @@ window.documentClickHandler = function (event) {
 };
 
 document.addEventListener('click', window.documentClickHandler);
-
-// Show a notification that inspector mode is active
-const notification = document.createElement('div');
-notification.textContent = 'Image inspector mode activated (hover over images)';
-Object.assign(notification.style, {
-    position: 'fixed',
-    top: '10px',
-    right: '10px',
-    padding: '8px 12px',
-    backgroundColor: '#34a853',
-    color: 'white',
-    borderRadius: '4px',
-    zIndex: '10000',
-    fontFamily: 'Arial, sans-serif',
-    fontSize: '14px',
-    transition: 'opacity 0.5s',
-    opacity: '1'
-});
-
-document.body.appendChild(notification);
-
-setTimeout(() => {
-    notification.style.opacity = '0';
-    setTimeout(() => notification.remove(), 500);
-}, 2000);
