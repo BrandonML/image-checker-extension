@@ -54,7 +54,6 @@
       position: 'absolute',
       top: `${imgRect.top + scrollTop}px`,
       left: `${imgRect.left + scrollLeft}px`,
-      width: `${imgRect.width}px`,
       height: `${imgRect.height}px`,
       pointerEvents: 'none',
       zIndex: '9999'
@@ -89,7 +88,7 @@
       pointerEvents: 'none',
       zIndex: '10000',
       boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-      maxWidth: '100%'
+      minWidth: '200px'
     });
 
     // Reposition the info box based on available space
@@ -141,14 +140,18 @@
     const renderedDecimalRatio = (renderedWidth / renderedHeight);
     const renderedRatioText = formatAspectRatio(renderedWidth, renderedHeight);
 
+    const fileName = src.split('/').pop().split('?')[0];
+
     // Create the details text
     infoBox.innerHTML = `
-    <div style="margin-bottom: 5px">Intrinsic: ${intrinsicWidth}×${intrinsicHeight}</div>
-    <div style="margin-bottom: 5px">Aspect ratio: ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
-    <br>
-    <div style="margin-bottom: 5px">Rendered: ${renderedWidth}×${renderedHeight}</div>
-    <div>Aspect ratio: ${renderedRatioText} (${renderedDecimalRatio.toFixed(2)})</div>
-  `;
+      <div style="margin-bottom: 5px"><strong>File:</strong> ${fileName || 'N/A'}</div>
+      <br/>
+      <div style="margin-bottom: 5px"><strong>Intrinsic:</strong> ${intrinsicWidth}×${intrinsicHeight}</div>
+      <div style="margin-bottom: 5px"><strong>Aspect ratio:</strong> ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
+      <br/>
+      <div style="margin-bottom: 5px"><strong>Rendered:</strong> ${renderedWidth}×${renderedHeight}</div>
+      <div><strong>Aspect ratio:</strong> ${renderedRatioText} (${renderedDecimalRatio.toFixed(2)})</div>
+    `;
 
     // Add elements to the container
     overlayContainer.appendChild(highlightBorder);
