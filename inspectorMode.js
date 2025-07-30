@@ -1,13 +1,15 @@
 // Add custom styles for hover effects
-const styleElement = document.createElement('style');
-styleElement.id = 'image-inspector-styles';
-styleElement.textContent = `
-    .image-inspector-hover {
-      outline: 2px dashed rgba(66, 133, 244, 0.6) !important;
-      outline-offset: 2px !important;
-    }
-  `;
-document.head.appendChild(styleElement);
+if (!document.getElementById('image-inspector-styles')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'image-inspector-styles';
+    styleElement.textContent = `
+        .image-inspector-hover {
+          outline: 2px dashed rgba(66, 133, 244, 0.6) !import ant;
+          outline-offset: 2px !important;
+        }
+      `;
+    document.head.appendChild(styleElement);
+}
 
 // Common image file extensions to check
 const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.heif', '.heic', '.gif', '.avif', '.bmp', '.ico'];
@@ -247,17 +249,3 @@ document.querySelectorAll('img').forEach(img => {
     }
 });
 
-// Add global click handler to remove overlay when clicking elsewhere
-window.documentClickHandler = function (event) {
-    // Check if the click was on or inside an image
-    if (event.target.tagName !== 'IMG') {
-        const overlays = document.querySelectorAll('.image-details-overlay');
-        overlays.forEach(overlay => {
-            overlay.style.transition = 'opacity 0.3s';
-            overlay.style.opacity = '0';
-            setTimeout(() => overlay.remove(), 300);
-        });
-    }
-};
-
-document.addEventListener('click', window.documentClickHandler);
