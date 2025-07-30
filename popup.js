@@ -1,114 +1,75 @@
-// Get the state of inspector mode from storage
-let inspectorEnabled = false;
-
-// Initialize the UI based on stored state
 document.addEventListener('DOMContentLoaded', function () {
-    // Check which buttons exist to determine which HTML version we're using
-    const hasEnableInspector = document.getElementById('enableInspector') !== null;
-    const hasCheckAllImages = document.getElementById('checkAllImages') !== null;
-    const hasCheckImages = document.getElementById('checkImages') !== null;
+    const status = document.getElementById('status');
 
-    // Initialize for the modern UI
-    if (hasEnableInspector && hasCheckAllImages) {
-        initializeModernUI();
+    // Restore the saved mode
+    chrome.storage.local.get(['mode', 'tabId'], function (result) {
+        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+            const currentTabId = tabs[0].id;
+            if (result.tabId === currentTabId) {
+                const mode = result.mode || 'off';
+                document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+                updateStatus(mode);
+            } else {
+                document.querySelector('input[name="mode"][value="off"]').checked = true;
+                updateStatus('off');
+            }
+        });
+    });
+
+    // Add event listeners to mode selectors
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            const mode = this.value;
+            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                const currentTabId = tabs[0].id;
+                chrome.storage.local.set({ mode: mode, tabId: currentTabId });
+                updateStatus(mode);
+                applyMode(mode);
+            });
+        });
+    });
+
+    function updateStatus(mode) {
+        switch (mode) {
+            case 'inspector':
+                status.textContent = 'Inspector mode is active.';
+                break;
+            case 'all':
+                status.textContent = 'Showing details for all images.';
+                break;
+            default:
+                status.textContent = 'Select a mode to begin.';
+                break;
+        }
     }
-    // Initialize for the simple UI
-    else if (hasCheckImages) {
-        initializeSimpleUI();
+
+    async function applyMode(mode) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+        // Always disable the current mode before enabling a new one.
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: disableInspectorMode,
+        });
+
+        if (mode === 'inspector') {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['inspectorMode.js'],
+            });
+        } else if (mode === 'all') {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['imageDetails.js'],
+            });
+        }
     }
 });
 
-// Initialize the modern UI with toggle switch
-function initializeModernUI() {
-    // Get stored state
-    chrome.storage.local.get(['inspectorEnabled'], function (result) {
-        inspectorEnabled = result.inspectorEnabled || false;
-        updateUI();
-    });
-
-    // Toggle inspector mode
-    document.getElementById('enableInspector').addEventListener('change', async (e) => {
-        inspectorEnabled = e.target.checked;
-
-        // Save state
-        chrome.storage.local.set({ inspectorEnabled });
-        updateUI();
-
-        // Apply changes to current tab
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (inspectorEnabled) {
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                files: ['inspectorMode.js']
-            });
-        } else {
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                function: disableInspectorMode
-            });
-        }
-    });
-
-    // Show details for all images on the page
-    document.getElementById('checkAllImages').addEventListener('click', async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['imageDetails.js']
-        });
-        window.close();
-    });
-
-    // Clear all details from the page
-    document.getElementById('clearDetails').addEventListener('click', async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: clearImageDetails
-        });
-        window.close();
-    });
-}
-
-// Initialize the simple UI with just buttons
-function initializeSimpleUI() {
-    document.getElementById('checkImages').addEventListener('click', async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['imageDetails.js']
-        });
-        // Close the popup after clicking for better UX
-        window.close();
-    });
-
-    document.getElementById('clearDetails').addEventListener('click', async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: clearImageDetails
-        });
-        // Close the popup after clicking for better UX
-        window.close();
-    });
-}
-
-// Update UI based on current state
-function updateUI() {
-    const checkbox = document.getElementById('enableInspector');
-    const statusText = document.getElementById('status');
-
-    if (!checkbox || !statusText) return;
-
-    checkbox.checked = inspectorEnabled;
-
-    if (inspectorEnabled) {
-        statusText.textContent = 'Click on images to inspect them';
-        statusText.style.color = '#34a853';
-    } else {
-        statusText.textContent = 'Inspector mode disabled';
-        statusText.style.color = '#5f6368';
-    }
+// This function can be injected into the page to clear details
+function clearImageDetails() {
+    const overlays = document.querySelectorAll('.image-details-overlay');
+    overlays.forEach(overlay => overlay.remove());
 }
 
 // Function to disable inspector mode on the page
@@ -134,64 +95,4 @@ function disableInspectorMode() {
     // Remove styles
     const styleElement = document.getElementById('image-inspector-styles');
     if (styleElement) styleElement.remove();
-
-    // Show notification
-    const notification = document.createElement('div');
-    notification.textContent = 'Image inspector disabled';
-    Object.assign(notification.style, {
-        position: 'fixed',
-        top: '10px',
-        right: '10px',
-        padding: '8px 12px',
-        backgroundColor: '#d93025',
-        color: 'white',
-        borderRadius: '4px',
-        zIndex: '10000',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '14px',
-        transition: 'opacity 0.5s',
-        opacity: '1'
-    });
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => notification.remove(), 500);
-    }, 2000);
-}
-
-// Function to clear all image details
-function clearImageDetails() {
-    const overlays = document.querySelectorAll('.image-details-overlay');
-
-    overlays.forEach(overlay => {
-        overlay.style.transition = 'opacity 0.3s';
-        overlay.style.opacity = '0';
-        setTimeout(() => overlay.remove(), 300);
-    });
-
-    const notification = document.createElement('div');
-    notification.textContent = 'Image details cleared';
-    Object.assign(notification.style, {
-        position: 'fixed',
-        top: '10px',
-        right: '10px',
-        padding: '8px 12px',
-        backgroundColor: '#4285f4',
-        color: 'white',
-        borderRadius: '4px',
-        zIndex: '10000',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '14px',
-        transition: 'opacity 0.5s',
-        opacity: '1'
-    });
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => notification.remove(), 500);
-    }, 2000);
 }

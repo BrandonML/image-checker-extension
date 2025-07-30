@@ -1,9 +1,5 @@
 // Function to prevent duplicate execution
 (function () {
-  // Clear any existing overlays first
-  const existingOverlays = document.querySelectorAll('.image-details-overlay');
-  existingOverlays.forEach(overlay => overlay.remove());
-
   // Select all images on the page
   const images = document.querySelectorAll('img');
 
@@ -179,31 +175,5 @@
       return `${width / divisor}:${height / divisor}`;
     }
   });
-
-  // Add a small notification that the feature is active
-  const notification = document.createElement('div');
-  notification.textContent = 'Image details activated';
-  Object.assign(notification.style, {
-    position: 'fixed',
-    top: '10px',
-    right: '10px',
-    padding: '8px 12px',
-    backgroundColor: '#4285f4',
-    color: 'white',
-    borderRadius: '4px',
-    zIndex: '10000',
-    fontFamily: 'Arial, sans-serif',
-    fontSize: '14px',
-    transition: 'opacity 0.5s',
-    opacity: '1'
-  });
-
-  document.body.appendChild(notification);
-
-  // Make the notification disappear after 2 seconds
-  setTimeout(() => {
-    notification.style.opacity = '0';
-    setTimeout(() => notification.remove(), 500);
-  }, 2000);
 
 })(); // End of self-executing function to prevent duplicate variable declarations

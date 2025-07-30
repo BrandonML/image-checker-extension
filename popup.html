@@ -5,114 +5,52 @@
     <title>Image Details Inspector</title>
     <style>
         body {
-            width: 220px;
-            padding: 12px;
-            font-family: Arial, sans-serif;
+            width: 250px;
+            padding: 15px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
         }
-
-        button {
-            width: 100%;
-            margin: 6px 0;
-            padding: 10px;
-            background-color: #4285f4;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s;
-        }
-
-        button:hover {
-            background-color: #3367d6;
-        }
-
-        button.active {
-            background-color: #34a853;
-        }
-
-        button.inactive {
-            background-color: #d93025;
-        }
-
         h2 {
             margin-top: 0;
-            font-size: 16px;
+            font-size: 18px;
             text-align: center;
-            margin-bottom: 12px;
+            margin-bottom: 15px;
+            color: #333;
         }
-
-        .toggle-container {
+        .mode-selector {
             display: flex;
-            align-items: center;
-            margin: 10px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
-        .toggle-label {
-            flex-grow: 1;
+        .mode-selector input[type="radio"] {
+            display: none;
+        }
+        .mode-selector label {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            cursor: pointer;
+            background-color: #fff;
+            color: #555;
+            transition: background-color 0.3s, color 0.3s;
             font-size: 14px;
         }
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 46px;
-            height: 24px;
+        .mode-selector input[type="radio"]:checked + label {
+            background-color: #4285f4;
+            color: white;
+            font-weight: bold;
         }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
+        .mode-selector label:not(:last-child) {
+            border-right: 1px solid #ccc;
         }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .3s;
-            border-radius: 24px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .3s;
-            border-radius: 50%;
-        }
-
-        input:checked+.slider {
-            background-color: #34a853;
-        }
-
-        input:focus+.slider {
-            box-shadow: 0 0 1px #34a853;
-        }
-
-        input:checked+.slider:before {
-            transform: translateX(22px);
-        }
-
         .status {
-            font-size: 12px;
+            font-size: 13px;
             text-align: center;
-            margin-top: 8px;
+            margin-top: 15px;
             color: #5f6368;
-        }
-
-        .divider {
-            height: 1px;
-            background-color: #dadce0;
-            margin: 12px 0;
+            height: 20px;
         }
     </style>
 </head>
@@ -120,20 +58,18 @@
 <body>
     <h2>Image Details Inspector</h2>
 
-    <div class="toggle-container">
-        <span class="toggle-label">Enable Inspector Mode</span>
-        <label class="switch">
-            <input type="checkbox" id="enableInspector">
-            <span class="slider"></span>
-        </label>
+    <div class="mode-selector">
+        <input type="radio" id="mode-off" name="mode" value="off" checked>
+        <label for="mode-off">Off</label>
+
+        <input type="radio" id="mode-inspector" name="mode" value="inspector">
+        <label for="mode-inspector">Inspector</label>
+
+        <input type="radio" id="mode-all" name="mode" value="all">
+        <label for="mode-all">Show All</label>
     </div>
 
-    <div class="status" id="status">Click to toggle inspector mode</div>
-
-    <div class="divider"></div>
-
-    <button id="checkAllImages">Show All Image Details</button>
-    <button id="clearDetails">Clear All Details</button>
+    <div class="status" id="status">Select a mode to begin.</div>
 
     <script src="popup.js"></script>
 </body>
