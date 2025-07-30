@@ -2,18 +2,28 @@ document.addEventListener('DOMContentLoaded', function () {
     const status = document.getElementById('status');
 
     // Restore the saved mode
-    chrome.storage.local.get(['mode', 'tabId'], function (result) {
-        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            const currentTabId = tabs[0].id;
-            if (result.tabId === currentTabId) {
-                const mode = result.mode || 'off';
-                document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
-                updateStatus(mode);
-            } else {
-                document.querySelector('input[name="mode"][value="off"]').checked = true;
-                updateStatus('off');
-            }
+    function restoreMode() {
+        chrome.storage.local.get(['mode', 'tabId'], function (result) {
+            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                const currentTabId = tabs[0].id;
+                if (result.tabId === currentTabId) {
+                    const mode = result.mode || 'off';
+                    document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+                    updateStatus(mode);
+                } else {
+                    document.querySelector('input[name="mode"][value="off"]').checked = true;
+                    updateStatus('off');
+                }
+            });
         });
+    }
+
+    restoreMode();
+
+    chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+        if (request.message === 'update_ui') {
+            restoreMode();
+        }
     });
 
     // Add event listeners to mode selectors
