@@ -64,7 +64,6 @@
             position: 'absolute',
             top: `${imgRect.top + scrollTop}px`,
             left: `${imgRect.left + scrollLeft}px`,
-            width: `${imgRect.width}px`,
             height: `${imgRect.height}px`,
             pointerEvents: 'none',
             zIndex: '9999'
@@ -99,7 +98,7 @@
             pointerEvents: 'none',
             zIndex: '10000',
             boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-            maxWidth: '100%'
+            minWidth: '200px'
         });
 
         // Reposition the info box based on available space
