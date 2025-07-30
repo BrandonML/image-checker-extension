@@ -1,12 +1,9 @@
 document.addEventListener('DOMContentLoaded', function () {
     const status = document.getElementById('status');
 
-    // Restore the saved mode
-    chrome.storage.local.get(['mode'], function (result) {
-        const mode = result.mode || 'off';
-        document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
-        updateStatus(mode);
-    });
+    // Set the initial mode to "off"
+    document.querySelector('input[name="mode"][value="off"]').checked = true;
+    updateStatus('off');
 
     // Add event listeners to mode selectors
     document.querySelectorAll('input[name="mode"]').forEach(radio => {
@@ -35,29 +32,22 @@ document.addEventListener('DOMContentLoaded', function () {
     async function applyMode(mode) {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-        if (mode === 'off') {
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                function: disableInspectorMode,
-            });
-        } else {
-            // First, always clear any existing details
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                function: clearImageDetails,
-            });
+        // Always disable the current mode before enabling a new one.
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: disableInspectorMode,
+        });
 
-            if (mode === 'inspector') {
-                chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    files: ['inspectorMode.js'],
-                });
-            } else if (mode === 'all') {
-                chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    files: ['imageDetails.js'],
-                });
-            }
+        if (mode === 'inspector') {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['inspectorMode.js'],
+            });
+        } else if (mode === 'all') {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['imageDetails.js'],
+            });
         }
     }
 });
