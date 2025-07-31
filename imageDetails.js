@@ -12,7 +12,9 @@
     // Process each image
     images.forEach(img => {
       const src = img.getAttribute('src') || '';
-      const renderedWidth = Math.round(img.getBoundingClientRect().width);
+      const imgRect = img.getBoundingClientRect();
+      const renderedWidth = Math.round(imgRect.width);
+      const renderedHeight = Math.round(imgRect.height);
 
       // 1. Check for minimum size
       if (renderedWidth < minSize) {
@@ -128,9 +130,6 @@
     const intrinsicRatioText = formatAspectRatio(intrinsicWidth, intrinsicHeight);
 
     // Get rendered dimensions (how the image appears on the page)
-    const renderedWidth = Math.round(imgRect.width);
-    const renderedHeight = Math.round(imgRect.height);
-
     const renderedDecimalRatio = (renderedWidth / renderedHeight);
     const renderedRatioText = formatAspectRatio(renderedWidth, renderedHeight);
 
