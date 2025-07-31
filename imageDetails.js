@@ -36,7 +36,6 @@
     const infoBox = document.createElement('div');
 
     // Position everything relative to the image
-    const imgRect = img.getBoundingClientRect();
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
