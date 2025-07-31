@@ -2,6 +2,38 @@
 
 A Chrome extension that helps you inspect and analyze images on any webpage. View detailed information about image dimensions, aspect ratios, and file details with an interactive overlay system.
 
+## Use Cases
+
+### 🐕 Animal Rescue & Pet Adoption Websites
+- **The Challenge**: Many pet adoption platforms require square images (1:1 aspect ratio) for proper display in profile grids
+- **The Solution**: Quickly verify that animal photos meet the exact 1:1 requirement, catching images that appear square but are slightly off (like 1.02:1)
+- **Why It Matters**: Ensures consistent, professional presentation of adoptable animals
+
+### 🛍️ E-commerce & Product Management
+- **Product catalogs**: Verify product images meet platform requirements (e.g., Amazon's square thumbnails)
+- **Inventory audits**: Check image consistency across product listings
+- **Quality control**: Identify compressed or improperly scaled product photos
+
+### 📱 Social Media Management
+- **Platform compliance**: Ensure images meet specific aspect ratio requirements (Instagram 1:1, Twitter 16:9, etc.)
+- **Content optimization**: Verify images will display correctly across different social platforms
+- **Brand consistency**: Check that marketing materials maintain proper proportions
+
+### 🎨 Web Development & Design
+- **Layout testing**: Verify images display as intended in responsive designs
+- **Performance optimization**: Identify oversized images that could be compressed
+- **Asset management**: Audit image dimensions across websites during development
+
+### 📰 Content Creation & Publishing
+- **Editorial standards**: Ensure featured images meet publication guidelines
+- **Template compliance**: Verify images fit specific CMS or theme requirements
+- **Multi-format publishing**: Check image suitability across different output formats
+
+### 🔍 Quality Assurance & Accessibility
+- **Image distortion detection**: Spot images that have been stretched or squashed
+- **Scaling issues**: Identify images displaying much larger or smaller than their original size
+- **Format analysis**: Check if modern formats (WebP, AVIF) are being used appropriately
+
 ## Features
 
 - **Three Operation Modes**: Choose between Inspector mode, Show All mode, or turn off completely
@@ -13,11 +45,7 @@ A Chrome extension that helps you inspect and analyze images on any webpage. Vie
 
 ## Installation
 
-1. Download or clone this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top right corner
-4. Click "Load unpacked" and select the extension folder
-5. The Image Details Inspector icon will appear in your toolbar
+1. Install from the Chrome Extension store
 
 ## How to Use
 
@@ -128,9 +156,8 @@ When using "Show All" mode, you can filter which images are displayed:
 - Switch modes off and on to reset
 
 ### Extension Not Working
-1. Check that Developer Mode is enabled
-2. Try disabling and re-enabling the extension
-3. Refresh the webpage after making changes
+1. Try disabling and re-enabling the extension
+2. Refresh the webpage after making changes
 
 ## Privacy & Security
 
@@ -166,9 +193,3 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ## License
 
 This project is open source. Feel free to use, modify, and distribute according to your needs.
-
----
-
-**Version**: 1.2  
-**Compatibility**: Chrome (Manifest V3)  
-**Last Updated**: 2024
