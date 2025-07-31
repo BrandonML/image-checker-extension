@@ -1,14 +1,27 @@
 document.addEventListener('DOMContentLoaded', function () {
     const status = document.getElementById('status');
+    const filterControls = document.getElementById('filter-controls');
+    const imageTypesContainer = document.getElementById('image-types');
+    const minSizeInput = document.getElementById('min-size');
 
-    // Restore the saved mode
-    chrome.storage.local.get(['mode', 'tabId'], function (result) {
+    // Restore saved settings
+    chrome.storage.local.get(['mode', 'tabId', 'filterSettings'], function (result) {
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             const currentTabId = tabs[0].id;
             if (result.tabId === currentTabId) {
                 const mode = result.mode || 'off';
                 document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
                 updateStatus(mode);
+
+                if (mode === 'all') {
+                    filterControls.style.display = 'block';
+                    populateImageTypes();
+                }
+
+                // Restore filter settings
+                if (result.filterSettings) {
+                    minSizeInput.value = result.filterSettings.minSize || 0;
+                }
             } else {
                 document.querySelector('input[name="mode"][value="off"]').checked = true;
                 updateStatus('off');
@@ -25,9 +38,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 chrome.storage.local.set({ mode: mode, tabId: currentTabId });
                 updateStatus(mode);
                 applyMode(mode);
+
+                if (mode === 'all') {
+                    filterControls.style.display = 'block';
+                    populateImageTypes();
+                } else {
+                    filterControls.style.display = 'none';
+                }
             });
         });
     });
+
+    // Event listener for filter changes
+    minSizeInput.addEventListener('change', saveFilterSettings);
+    imageTypesContainer.addEventListener('change', saveFilterSettings);
+
 
     function updateStatus(mode) {
         switch (mode) {
@@ -63,6 +88,78 @@ document.addEventListener('DOMContentLoaded', function () {
                 files: ['imageDetails.js'],
             });
         }
+    }
+
+    async function populateImageTypes() {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: getImageTypes,
+        }, (injectionResults) => {
+            const imageTypes = injectionResults[0].result;
+            imageTypesContainer.innerHTML = ''; // Clear existing checkboxes
+
+            if (imageTypes && imageTypes.length > 0) {
+                chrome.storage.local.get('filterSettings', function (result) {
+                    const savedTypes = result.filterSettings ? result.filterSettings.allowedTypes : imageTypes;
+
+                    imageTypes.forEach(type => {
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = `type-${type}`;
+                        checkbox.value = type;
+                        checkbox.checked = savedTypes.includes(type);
+
+                        const label = document.createElement('label');
+                        label.htmlFor = `type-${type}`;
+                        label.textContent = type.toUpperCase();
+                        label.style.marginLeft = '5px';
+
+                        const container = document.createElement('div');
+                        container.appendChild(checkbox);
+                        container.appendChild(label);
+                        imageTypesContainer.appendChild(container);
+                    });
+                });
+            } else {
+                imageTypesContainer.textContent = 'No image types found on this page.';
+            }
+        });
+    }
+
+    function saveFilterSettings() {
+        const allowedTypes = Array.from(imageTypesContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+        const minSize = parseInt(minSizeInput.value, 10) || 0;
+
+        const filterSettings = { allowedTypes, minSize };
+        chrome.storage.local.set({ filterSettings }, function () {
+            // Re-apply the 'all' mode to reflect filter changes
+            applyMode('all');
+        });
+    }
+
+    // This function is injected into the page to get all unique image types
+    function getImageTypes() {
+        const images = document.querySelectorAll('img');
+        const types = new Set();
+        const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.gif', '.avif', '.bmp', '.ico'];
+
+        images.forEach(img => {
+            const src = img.getAttribute('src') || '';
+            const baseUrl = src.split('?')[0].split('#')[0];
+            const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9]+)$/);
+
+            if (extensionMatch && validExtensions.includes(extensionMatch[0].toLowerCase())) {
+                types.add(extensionMatch[1].toLowerCase());
+            } else if (src.startsWith('data:image/')) {
+                const mimeType = src.match(/data:image\/([^;]+);/);
+                if (mimeType) {
+                    types.add(mimeType[1]);
+                }
+            }
+        });
+
+        return Array.from(types);
     }
 });
 

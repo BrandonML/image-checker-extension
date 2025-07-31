@@ -71,6 +71,20 @@
 
     <div class="status" id="status">Select a mode to begin.</div>
 
+    <div id="filter-controls" style="display: none; margin-top: 15px;">
+        <div class="filter-section">
+            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Filter by type:</label>
+            <div id="image-types" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                <!-- Checkboxes will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <div class="filter-section" style="margin-top: 15px;">
+            <label for="min-size" style="font-weight: bold; display: block; margin-bottom: 5px;">Minimum size (width in px):</label>
+            <input type="number" id="min-size" name="min-size" min="0" value="0" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+    </div>
+
     <script src="popup.js"></script>
 </body>
 

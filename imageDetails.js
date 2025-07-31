@@ -1,46 +1,41 @@
 // Function to prevent duplicate execution
 (function () {
-  // Select all images on the page
-  const images = document.querySelectorAll('img');
+  // Get filter settings from storage, with defaults
+  chrome.storage.local.get('filterSettings', function (result) {
+    const settings = result.filterSettings || {};
+    const allowedTypes = settings.allowedTypes || null; // Null means all types are allowed initially
+    const minSize = settings.minSize || 0;
 
-  // Common image file extensions to check
-  const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.heif', '.heic', '.gif', '.avif', '.bmp', '.ico'];
+    // Select all images on the page
+    const images = document.querySelectorAll('img');
 
-  // Process each image
-  images.forEach(img => {
-    // Check if the image has a valid file extension (if src is available)
-    const src = img.getAttribute('src') || '';
+    // Process each image
+    images.forEach(img => {
+      const src = img.getAttribute('src') || '';
+      const imgRect = img.getBoundingClientRect();
+      const renderedWidth = Math.round(imgRect.width);
+      const renderedHeight = Math.round(imgRect.height);
 
-    // Function to check if URL contains a valid image extension (handles query parameters)
-    const checkValidImageUrl = (url) => {
-      // Remove query parameters and hash for checking extensions
-      const baseUrl = url.split('?')[0].split('#')[0];
+      // 1. Check for minimum size
+      if (renderedWidth < minSize) {
+        return; // Skip if smaller than min size
+      }
 
-      // Check for valid file extensions
-      return validExtensions.some(ext => baseUrl.toLowerCase().endsWith(ext));
-    };
+      // 2. Check for file type
+      const fileType = getImageType(src);
+      if (allowedTypes && !allowedTypes.includes(fileType)) {
+        return; // Skip if not in the allowed types list
+      }
 
-    // Check various conditions for valid images
-    const hasValidExtension = checkValidImageUrl(src) ||
-      // Check for data URLs with image MIME types
-      (src.startsWith('data:image/') &&
-        validExtensions.some(ext => src.includes(`image/${ext.substring(1)}`)));
-
-    // Skip images that don't match our criteria
-    if (!hasValidExtension && src.indexOf('data:image/') !== 0) {
-      return;
-    }
-
-    // Create overlay container and elements
-    const overlayContainer = document.createElement('div');
-    overlayContainer.className = 'image-details-overlay';
+      // Create overlay container and elements
+      const overlayContainer = document.createElement('div');
+      overlayContainer.className = 'image-details-overlay';
 
     // Overlay will consist of a highlight border and an info box
     const highlightBorder = document.createElement('div');
     const infoBox = document.createElement('div');
 
     // Position everything relative to the image
-    const imgRect = img.getBoundingClientRect();
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
@@ -134,9 +129,6 @@
     const intrinsicRatioText = formatAspectRatio(intrinsicWidth, intrinsicHeight);
 
     // Get rendered dimensions (how the image appears on the page)
-    const renderedWidth = Math.round(imgRect.width);
-    const renderedHeight = Math.round(imgRect.height);
-
     const renderedDecimalRatio = (renderedWidth / renderedHeight);
     const renderedRatioText = formatAspectRatio(renderedWidth, renderedHeight);
 
@@ -177,6 +169,21 @@
       const divisor = gcd(width, height);
       return `${width / divisor}:${height / divisor}`;
     }
-  });
+    });
 
-})(); // End of self-executing function to prevent duplicate variable declarations
+    function getImageType(src) {
+      const baseUrl = src.split('?')[0].split('#')[0];
+      const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9]+)$/);
+
+      if (extensionMatch) {
+        return extensionMatch[1].toLowerCase();
+      } else if (src.startsWith('data:image/')) {
+        const mimeType = src.match(/data:image\/([^;]+);/);
+        if (mimeType) {
+          return mimeType[1];
+        }
+      }
+      return null;
+    }
+  });
+})();
