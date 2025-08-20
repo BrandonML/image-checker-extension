@@ -1,6 +1,6 @@
 # Image Details Inspector
 
-A Chrome extension that helps you inspect and analyze images on any webpage. View detailed information about image dimensions, aspect ratios, and file details with an interactive overlay system.
+A [Chrome extension](https://chromewebstore.google.com/detail/image-details-inspector/bojngljoiofhdmbnojibacahhohnegoa) that helps you inspect and analyze images on any webpage. View detailed information about image dimensions, aspect ratios, and file details with an interactive overlay system.
 
 ## Use Cases
 
@@ -45,7 +45,7 @@ A Chrome extension that helps you inspect and analyze images on any webpage. Vie
 
 ## Installation
 
-1. Install from the Chrome Extension store
+1. Install from the [Chrome Extension store](https://chromewebstore.google.com/detail/image-details-inspector/bojngljoiofhdmbnojibacahhohnegoa)
 
 ## How to Use
 
