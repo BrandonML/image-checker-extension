@@ -35,85 +35,74 @@
     return null;
   }
 
-  // Get filter settings from storage, with defaults
-  chrome.storage.local.get('filterSettings', function (result) {
-    const settings = result.filterSettings || {};
-    const allowedTypes = Array.isArray(settings.allowedTypes)
-      ? settings.allowedTypes.map(normalizeImageType).filter(Boolean)
-      : null; // Null means all types are allowed initially
-    const minSize = settings.minSize || 0;
+  const processedImageState = new WeakMap();
+  const imageOverlayMap = new WeakMap();
 
-    // Select all images on the page
-    const images = document.querySelectorAll('img');
-
-    // Helper function to format aspect ratio as X:Y
-    function formatAspectRatio(width, height) {
-      if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
-        return 'N/A';
-      }
-
-      // Find the greatest common divisor (GCD)
-      const gcd = (a, b) => {
-        while (b !== 0) {
-          const temp = b;
-          b = a % b;
-          a = temp;
-        }
-        return a;
-      };
-
-      const divisor = gcd(width, height);
-      return `${width / divisor}:${height / divisor}`;
+  function formatAspectRatio(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
+      return 'N/A';
     }
 
-    // Helper function to format both ratio styles with safe fallback text
-    function formatRatioDetails(width, height) {
-      if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
-        return { ratioText: 'N/A', decimalText: 'N/A' };
+    const gcd = (a, b) => {
+      while (b !== 0) {
+        const temp = b;
+        b = a % b;
+        a = temp;
       }
+      return a;
+    };
 
-      return {
-        ratioText: formatAspectRatio(width, height),
-        decimalText: (width / height).toFixed(2)
-      };
+    const divisor = gcd(width, height);
+    return `${width / divisor}:${height / divisor}`;
+  }
+
+  function formatRatioDetails(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
+      return { ratioText: 'N/A', decimalText: 'N/A' };
     }
 
-    // Process each image
-    images.forEach(img => {
-      const src = img.getAttribute('src') || '';
-      const imgRect = img.getBoundingClientRect();
-      const renderedWidth = Math.round(imgRect.width);
-      const renderedHeight = Math.round(imgRect.height);
+    return {
+      ratioText: formatAspectRatio(width, height),
+      decimalText: (width / height).toFixed(2)
+    };
+  }
 
-      // 1. Check for minimum size
-      if (renderedWidth < minSize) {
-        return; // Skip if smaller than min size
-      }
+  function shouldRenderOverlay(img, allowedTypes, minSize) {
+    const src = img.getAttribute('src') || '';
+    const imgRect = img.getBoundingClientRect();
+    const renderedWidth = Math.round(imgRect.width);
 
-      // 2. Check for file type
-      const fileType = getNormalizedImageType(src);
-      if (allowedTypes && !allowedTypes.includes(fileType)) {
-        return; // Skip if not in the allowed types list
-      }
+    if (renderedWidth < minSize) {
+      return false;
+    }
 
-      // Create overlay container and elements
-      const overlayContainer = document.createElement('div');
-      overlayContainer.className = 'image-details-overlay';
+    const fileType = getNormalizedImageType(src);
+    if (allowedTypes && !allowedTypes.includes(fileType)) {
+      return false;
+    }
 
-    // Overlay will consist of a highlight border and an info box
+    return true;
+  }
+
+  function createOverlayForImage(img) {
+    const src = img.getAttribute('src') || '';
+    const imgRect = img.getBoundingClientRect();
+    const renderedWidth = Math.round(imgRect.width);
+    const renderedHeight = Math.round(imgRect.height);
+
+    const overlayContainer = document.createElement('div');
+    overlayContainer.className = 'image-details-overlay';
+
     const highlightBorder = document.createElement('div');
     const infoBox = document.createElement('div');
 
-    // Position everything relative to the image
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
 
-    // Generate a unique color for this overlay (to visually connect border and info box)
     const hue = Math.floor(Math.random() * 360);
     const borderColor = `hsla(${hue}, 100%, 50%, 0.8)`;
     const backgroundColor = `hsla(${hue}, 100%, 25%, 0.9)`;
 
-    // Style the container
     Object.assign(overlayContainer.style, {
       position: 'absolute',
       top: `${imgRect.top + scrollTop}px`,
@@ -123,7 +112,6 @@
       zIndex: '9999'
     });
 
-    // Style the highlight border that goes around the image
     Object.assign(highlightBorder.style, {
       position: 'absolute',
       top: '0',
@@ -136,7 +124,6 @@
       zIndex: '9999'
     });
 
-    // Style the info box that contains the text
     Object.assign(infoBox.style, {
       position: 'absolute',
       top: '0',
@@ -155,24 +142,19 @@
       minWidth: '200px'
     });
 
-    // Reposition the info box based on available viewport space
-    // Try to position it where it won't overlap other elements as much
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
     const spaceBelow = viewportHeight - imgRect.bottom;
     const spaceAbove = imgRect.top;
 
     if (spaceAbove > 100) {
-      // If there's room above the image
       infoBox.style.bottom = '100%';
       infoBox.style.top = 'auto';
       infoBox.style.marginBottom = '5px';
     } else if (spaceBelow > 100) {
-      // If there's room below the image
       infoBox.style.top = '100%';
       infoBox.style.marginTop = '5px';
     }
 
-    // Add a connector line between border and info box if they're separated
     if (infoBox.style.top === '100%' || infoBox.style.bottom === '100%') {
       const connector = document.createElement('div');
       Object.assign(connector.style, {
@@ -193,14 +175,10 @@
       overlayContainer.appendChild(connector);
     }
 
-    // Get intrinsic dimensions (natural dimensions of the image)
     const intrinsicWidth = img.naturalWidth;
     const intrinsicHeight = img.naturalHeight;
 
-    // Calculate both decimal and ratio format for aspect ratios
     const intrinsicRatioDetails = formatRatioDetails(intrinsicWidth, intrinsicHeight);
-
-    // Get rendered dimensions (how the image appears on the page)
     const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
     const fileName = src.split('/').pop().split('?')[0];
@@ -236,12 +214,106 @@
     appendDetailsRow('Rendered', `${renderedWidth}×${renderedHeight}`);
     appendDetailsRow('Aspect ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`, false);
 
-    // Add elements to the container
     overlayContainer.appendChild(highlightBorder);
     overlayContainer.appendChild(infoBox);
 
-    // Add overlay container to the document
+    const existingOverlay = imageOverlayMap.get(img);
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
     document.body.appendChild(overlayContainer);
+    imageOverlayMap.set(img, overlayContainer);
+  }
+
+  function processImage(img, allowedTypes, minSize) {
+    if (!(img instanceof HTMLImageElement)) return;
+
+    const currentSignature = [
+      img.currentSrc || img.getAttribute('src') || '',
+      img.naturalWidth || 0,
+      img.naturalHeight || 0
+    ].join('|');
+
+    if (processedImageState.get(img) === currentSignature) {
+      return;
+    }
+
+    if (!shouldRenderOverlay(img, allowedTypes, minSize)) {
+      const existingOverlay = imageOverlayMap.get(img);
+      if (existingOverlay) {
+        existingOverlay.remove();
+        imageOverlayMap.delete(img);
+      }
+      processedImageState.set(img, currentSignature);
+      return;
+    }
+
+    createOverlayForImage(img);
+    processedImageState.set(img, currentSignature);
+  }
+
+  function processAddedNode(node, allowedTypes, minSize) {
+    if (!(node instanceof Element)) return;
+
+    if (node instanceof HTMLImageElement) {
+      processImage(node, allowedTypes, minSize);
+    }
+
+    node.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+  }
+
+  function cleanupRemovedImage(img) {
+    const existingOverlay = imageOverlayMap.get(img);
+    if (existingOverlay) {
+      existingOverlay.remove();
+      imageOverlayMap.delete(img);
+    }
+
+    processedImageState.delete(img);
+  }
+
+  function cleanupRemovedNode(node) {
+    if (!(node instanceof Element)) return;
+
+    if (node instanceof HTMLImageElement) {
+      cleanupRemovedImage(node);
+    }
+
+    node.querySelectorAll('img').forEach((img) => cleanupRemovedImage(img));
+  }
+
+  chrome.storage.local.get('filterSettings', function (result) {
+    const settings = result.filterSettings || {};
+    const allowedTypes = Array.isArray(settings.allowedTypes)
+      ? settings.allowedTypes.map(normalizeImageType).filter(Boolean)
+      : null;
+    const minSize = settings.minSize || 0;
+
+    document.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+
+    if (window.imageDetailsObserver) {
+      window.imageDetailsObserver.disconnect();
+    }
+
+    window.imageDetailsObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => processAddedNode(node, allowedTypes, minSize));
+        mutation.removedNodes.forEach((node) => cleanupRemovedNode(node));
+
+        if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+          processImage(mutation.target, allowedTypes, minSize);
+        }
+      });
     });
+
+    if (document.body) {
+      window.imageDetailsObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['src', 'srcset']
+      });
+    }
   });
 })();
