@@ -9,6 +9,38 @@
     // Select all images on the page
     const images = document.querySelectorAll('img');
 
+    // Helper function to format aspect ratio as X:Y
+    function formatAspectRatio(width, height) {
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
+        return 'N/A';
+      }
+
+      // Find the greatest common divisor (GCD)
+      const gcd = (a, b) => {
+        while (b !== 0) {
+          const temp = b;
+          b = a % b;
+          a = temp;
+        }
+        return a;
+      };
+
+      const divisor = gcd(width, height);
+      return `${width / divisor}:${height / divisor}`;
+    }
+
+    // Helper function to format both ratio styles with safe fallback text
+    function formatRatioDetails(width, height) {
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
+        return { ratioText: 'N/A', decimalText: 'N/A' };
+      }
+
+      return {
+        ratioText: formatAspectRatio(width, height),
+        decimalText: (width / height).toFixed(2)
+      };
+    }
+
     // Process each image
     images.forEach(img => {
       const src = img.getAttribute('src') || '';
@@ -129,12 +161,10 @@
     const intrinsicHeight = img.naturalHeight;
 
     // Calculate both decimal and ratio format for aspect ratios
-    const intrinsicDecimalRatio = (intrinsicWidth / intrinsicHeight);
-    const intrinsicRatioText = formatAspectRatio(intrinsicWidth, intrinsicHeight);
+    const intrinsicRatioDetails = formatRatioDetails(intrinsicWidth, intrinsicHeight);
 
     // Get rendered dimensions (how the image appears on the page)
-    const renderedDecimalRatio = (renderedWidth / renderedHeight);
-    const renderedRatioText = formatAspectRatio(renderedWidth, renderedHeight);
+    const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
     const fileName = src.split('/').pop().split('?')[0];
 
@@ -143,10 +173,10 @@
       <div style="margin-bottom: 5px"><strong>File:</strong> ${fileName || 'N/A'}</div>
       <br/>
       <div style="margin-bottom: 5px"><strong>Intrinsic:</strong> ${intrinsicWidth}×${intrinsicHeight}</div>
-      <div style="margin-bottom: 5px"><strong>Aspect ratio:</strong> ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
+      <div style="margin-bottom: 5px"><strong>Aspect ratio:</strong> ${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})</div>
       <br/>
       <div style="margin-bottom: 5px"><strong>Rendered:</strong> ${renderedWidth}×${renderedHeight}</div>
-      <div><strong>Aspect ratio:</strong> ${renderedRatioText} (${renderedDecimalRatio.toFixed(2)})</div>
+      <div><strong>Aspect ratio:</strong> ${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})</div>
     `;
 
     // Add elements to the container
@@ -155,24 +185,6 @@
 
     // Add overlay container to the document
     document.body.appendChild(overlayContainer);
-
-    // Helper function to format aspect ratio as X:Y
-    function formatAspectRatio(width, height) {
-      if (width === 0 || height === 0) return "N/A";
-
-      // Find the greatest common divisor (GCD)
-      const gcd = (a, b) => {
-        while (b !== 0) {
-          const temp = b;
-          b = a % b;
-          a = temp;
-        }
-        return a;
-      };
-
-      const divisor = gcd(width, height);
-      return `${width / divisor}:${height / divisor}`;
-    }
     });
 
     function getImageType(src) {

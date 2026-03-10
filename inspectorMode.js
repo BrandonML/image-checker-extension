@@ -29,6 +29,36 @@
     // Current active overlay element
     let currentOverlay = null;
 
+    // Helper function to format aspect ratio as X:Y
+    function formatAspectRatio(width, height) {
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) return 'N/A';
+
+        // Find the greatest common divisor (GCD)
+        const gcd = (a, b) => {
+            while (b !== 0) {
+                const temp = b;
+                b = a % b;
+                a = temp;
+            }
+            return a;
+        };
+
+        const divisor = gcd(width, height);
+        return `${width / divisor}:${height / divisor}`;
+    }
+
+    // Helper function to format both ratio styles with safe fallback text
+    function formatRatioDetails(width, height) {
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
+            return { ratioText: 'N/A', decimalText: 'N/A' };
+        }
+
+        return {
+            ratioText: formatAspectRatio(width, height),
+            decimalText: (width / height).toFixed(2)
+        };
+    }
+
     // Function to create and show an overlay for an image
     function showImageDetails(img, event) {
         // Stop event propagation to ensure it doesn't trigger parent elements
@@ -143,15 +173,13 @@
         const intrinsicHeight = img.naturalHeight;
 
         // Calculate both decimal and ratio format for aspect ratios
-        const intrinsicDecimalRatio = (intrinsicWidth / intrinsicHeight);
-        const intrinsicRatioText = formatAspectRatio(intrinsicWidth, intrinsicHeight);
+        const intrinsicRatioDetails = formatRatioDetails(intrinsicWidth, intrinsicHeight);
 
         // Get rendered dimensions (how the image appears on the page)
         const renderedWidth = Math.round(imgRect.width);
         const renderedHeight = Math.round(imgRect.height);
 
-        const renderedDecimalRatio = (renderedWidth / renderedHeight);
-        const renderedRatioText = formatAspectRatio(renderedWidth, renderedHeight);
+        const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
         // Add image file information
         const src = img.getAttribute('src') || '';
@@ -162,10 +190,10 @@
           <div style="margin-bottom: 5px"><strong>File:</strong> ${fileName || 'N/A'}</div>
           <br/>
           <div style="margin-bottom: 5px"><strong>Intrinsic:</strong> ${intrinsicWidth}×${intrinsicHeight}</div>
-          <div style="margin-bottom: 5px"><strong>Aspect ratio:</strong> ${intrinsicRatioText} (${intrinsicDecimalRatio.toFixed(2)})</div>
+          <div style="margin-bottom: 5px"><strong>Aspect ratio:</strong> ${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})</div>
           <br/>
           <div style="margin-bottom: 5px"><strong>Rendered:</strong> ${renderedWidth}×${renderedHeight}</div>
-          <div><strong>Aspect ratio:</strong> ${renderedRatioText} (${renderedDecimalRatio.toFixed(2)})</div>
+          <div><strong>Aspect ratio:</strong> ${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})</div>
         `;
 
         // Add elements to the container
@@ -177,24 +205,6 @@
 
         // Store current overlay reference
         currentOverlay = overlayContainer;
-    }
-
-    // Helper function to format aspect ratio as X:Y
-    function formatAspectRatio(width, height) {
-        if (width === 0 || height === 0) return "N/A";
-
-        // Find the greatest common divisor (GCD)
-        const gcd = (a, b) => {
-            while (b !== 0) {
-                const temp = b;
-                b = a % b;
-                a = temp;
-            }
-            return a;
-        };
-
-        const divisor = gcd(width, height);
-        return `${width / divisor}:${height / divisor}`;
     }
 
     // Function to handle mouse hovering over an image - now shows details
