@@ -244,8 +244,11 @@ function disableInspectorMode() {
         img.removeEventListener('click', window.imageInspectorClickHandler);
         img.removeEventListener('mouseover', window.imageInspectorHoverHandler);
         img.removeEventListener('mouseout', window.imageInspectorOutHandler);
-        delete img.dataset.imageInspectorBound;
     });
+
+    if (window.imageInspectorBoundImages instanceof WeakSet) {
+        window.imageInspectorBoundImages = new WeakSet();
+    }
 
     // Remove global click handler
     if (window.documentClickHandler) {

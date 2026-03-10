@@ -1,4 +1,10 @@
 (function () {
+    if (!(window.imageInspectorBoundImages instanceof WeakSet)) {
+        window.imageInspectorBoundImages = new WeakSet();
+    }
+
+    const imageInspectorBoundImages = window.imageInspectorBoundImages;
+
     const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
     const IMAGE_TYPE_ALIASES = {
         jpg: 'jpeg',
@@ -54,7 +60,7 @@
 
     function attachInspectorListeners(img) {
         if (!(img instanceof HTMLImageElement)) return;
-        if (img.dataset.imageInspectorBound === 'true') return;
+        if (imageInspectorBoundImages.has(img)) return;
 
         const src = img.getAttribute('src') || '';
         const hasValidExtension = checkValidImageUrl(src);
@@ -63,7 +69,7 @@
         img.addEventListener('mouseover', window.imageInspectorHoverHandler);
         img.addEventListener('mouseout', window.imageInspectorOutHandler);
         img.addEventListener('click', window.imageInspectorClickHandler);
-        img.dataset.imageInspectorBound = 'true';
+        imageInspectorBoundImages.add(img);
     }
 
     function processAddedNode(node) {
