@@ -86,14 +86,18 @@
       minWidth: '200px'
     });
 
-    // Reposition the info box based on available space
+    // Reposition the info box based on available viewport space
     // Try to position it where it won't overlap other elements as much
-    if (imgRect.top > 100) {
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const spaceBelow = viewportHeight - imgRect.bottom;
+    const spaceAbove = imgRect.top;
+
+    if (spaceAbove > 100) {
       // If there's room above the image
       infoBox.style.bottom = '100%';
       infoBox.style.top = 'auto';
       infoBox.style.marginBottom = '5px';
-    } else if (document.documentElement.clientHeight - (imgRect.bottom + scrollTop) > 100) {
+    } else if (spaceBelow > 100) {
       // If there's room below the image
       infoBox.style.top = '100%';
       infoBox.style.marginTop = '5px';
