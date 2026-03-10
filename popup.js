@@ -5,26 +5,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const minSizeInput = document.getElementById('min-size');
 
     // Restore saved settings
-    chrome.storage.local.get(['mode', 'tabId', 'filterSettings'], function (result) {
+    chrome.storage.local.get(['modeByTab', 'filterSettings'], function (result) {
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             const currentTabId = tabs[0].id;
-            if (result.tabId === currentTabId) {
-                const mode = result.mode || 'off';
-                document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
-                updateStatus(mode);
+            const modeByTab = result.modeByTab || {};
+            const mode = modeByTab[currentTabId] || 'off';
 
-                if (mode === 'all') {
-                    filterControls.style.display = 'block';
-                    populateImageTypes();
-                }
+            document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+            updateStatus(mode);
 
-                // Restore filter settings
-                if (result.filterSettings) {
-                    minSizeInput.value = result.filterSettings.minSize || 0;
-                }
-            } else {
-                document.querySelector('input[name="mode"][value="off"]').checked = true;
-                updateStatus('off');
+            if (mode === 'all') {
+                filterControls.style.display = 'block';
+                populateImageTypes();
+            }
+
+            // Restore filter settings
+            if (result.filterSettings) {
+                minSizeInput.value = result.filterSettings.minSize || 0;
             }
         });
     });
@@ -35,7 +32,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const mode = this.value;
             chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
                 const currentTabId = tabs[0].id;
-                chrome.storage.local.set({ mode: mode, tabId: currentTabId });
+
+                chrome.storage.local.get('modeByTab', function (result) {
+                    const modeByTab = result.modeByTab || {};
+                    modeByTab[currentTabId] = mode;
+                    chrome.storage.local.set({ modeByTab });
+                });
+
                 updateStatus(mode);
                 applyMode(mode);
 
