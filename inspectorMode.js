@@ -333,13 +333,19 @@
     window.imageInspectorObserver = new MutationObserver((mutations) => {
         mutations.forEach(mutation => {
             mutation.addedNodes.forEach(processAddedNode);
+
+            if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+                attachInspectorListeners(mutation.target);
+            }
         });
     });
 
     if (document.body) {
         window.imageInspectorObserver.observe(document.body, {
             childList: true,
-            subtree: true
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['src', 'srcset']
         });
     }
 })();
