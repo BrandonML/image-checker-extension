@@ -1,4 +1,39 @@
 (function () {
+    const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
+    const IMAGE_TYPE_ALIASES = {
+        jpg: 'jpeg',
+        'svg+xml': 'svg',
+        'x-icon': 'ico',
+        'vnd.microsoft.icon': 'ico'
+    };
+
+    function normalizeImageType(type) {
+        if (!type) return null;
+
+        const normalized = type.toLowerCase();
+        const mappedType = IMAGE_TYPE_ALIASES[normalized] || normalized;
+
+        return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
+    }
+
+    function getNormalizedImageType(src) {
+        if (!src) return null;
+
+        const baseUrl = src.split('?')[0].split('#')[0];
+        const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
+
+        if (extensionMatch) {
+            return normalizeImageType(extensionMatch[1]);
+        }
+
+        const dataUrlMatch = src.match(/^data:image\/([^;,]+)/i);
+        if (dataUrlMatch) {
+            return normalizeImageType(dataUrlMatch[1]);
+        }
+
+        return null;
+    }
+
     // Add custom styles for hover effects
     if (!document.getElementById('image-inspector-styles')) {
         const styleElement = document.createElement('style');
@@ -12,18 +47,9 @@
         document.head.appendChild(styleElement);
     }
 
-    // Common image file extensions to check
-    const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.heif', '.heic', '.gif', '.avif', '.bmp', '.ico'];
-
     // Function to check if URL contains a valid image extension (handles query parameters)
     function checkValidImageUrl(url) {
-        if (!url) return false;
-
-        // Remove query parameters and hash for checking extensions
-        const baseUrl = url.split('?')[0].split('#')[0];
-
-        // Check for valid file extensions
-        return validExtensions.some(ext => baseUrl.toLowerCase().endsWith(ext));
+        return Boolean(getNormalizedImageType(url));
     }
 
     // Current active overlay element
@@ -271,7 +297,7 @@
         const src = img.getAttribute('src') || '';
 
         // Check if this is a valid image we want to inspect
-        const hasValidExtension = checkValidImageUrl(src) || src.startsWith('data:image/');
+        const hasValidExtension = checkValidImageUrl(src);
 
         if (hasValidExtension) {
             // Use hover instead of click for showing details

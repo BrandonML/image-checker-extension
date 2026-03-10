@@ -1,9 +1,46 @@
 // Function to prevent duplicate execution
 (function () {
+  const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
+  const IMAGE_TYPE_ALIASES = {
+    jpg: 'jpeg',
+    'svg+xml': 'svg',
+    'x-icon': 'ico',
+    'vnd.microsoft.icon': 'ico'
+  };
+
+  function normalizeImageType(type) {
+    if (!type) return null;
+
+    const normalized = type.toLowerCase();
+    const mappedType = IMAGE_TYPE_ALIASES[normalized] || normalized;
+
+    return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
+  }
+
+  function getNormalizedImageType(src) {
+    if (!src) return null;
+
+    const baseUrl = src.split('?')[0].split('#')[0];
+    const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+-]+)$/);
+
+    if (extensionMatch) {
+      return normalizeImageType(extensionMatch[1]);
+    }
+
+    const dataUrlMatch = src.match(/^data:image\/([^;,]+)/i);
+    if (dataUrlMatch) {
+      return normalizeImageType(dataUrlMatch[1]);
+    }
+
+    return null;
+  }
+
   // Get filter settings from storage, with defaults
   chrome.storage.local.get('filterSettings', function (result) {
     const settings = result.filterSettings || {};
-    const allowedTypes = settings.allowedTypes || null; // Null means all types are allowed initially
+    const allowedTypes = Array.isArray(settings.allowedTypes)
+      ? settings.allowedTypes.map(normalizeImageType).filter(Boolean)
+      : null; // Null means all types are allowed initially
     const minSize = settings.minSize || 0;
 
     // Select all images on the page
@@ -54,7 +91,7 @@
       }
 
       // 2. Check for file type
-      const fileType = getImageType(src);
+      const fileType = getNormalizedImageType(src);
       if (allowedTypes && !allowedTypes.includes(fileType)) {
         return; // Skip if not in the allowed types list
       }
@@ -206,20 +243,5 @@
     // Add overlay container to the document
     document.body.appendChild(overlayContainer);
     });
-
-    function getImageType(src) {
-      const baseUrl = src.split('?')[0].split('#')[0];
-      const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9]+)$/);
-
-      if (extensionMatch) {
-        return extensionMatch[1].toLowerCase();
-      } else if (src.startsWith('data:image/')) {
-        const mimeType = src.match(/data:image\/([^;]+);/);
-        if (mimeType) {
-          return mimeType[1];
-        }
-      }
-      return null;
-    }
   });
 })();

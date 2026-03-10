@@ -4,6 +4,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const imageTypesContainer = document.getElementById('image-types');
     const minSizeInput = document.getElementById('min-size');
 
+    const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
+    const IMAGE_TYPE_ALIASES = {
+        jpg: 'jpeg',
+        'svg+xml': 'svg',
+        'x-icon': 'ico',
+        'vnd.microsoft.icon': 'ico'
+    };
+
+    function normalizeImageType(type) {
+        if (!type) return null;
+
+        const normalized = type.toLowerCase();
+        const mappedType = IMAGE_TYPE_ALIASES[normalized] || normalized;
+
+        return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
+    }
+
     // Restore saved settings
     chrome.storage.local.get(['modeByTab', 'filterSettings'], function (result) {
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -104,7 +121,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (imageTypes && imageTypes.length > 0) {
                 chrome.storage.local.get('filterSettings', function (result) {
-                    const savedTypes = result.filterSettings ? result.filterSettings.allowedTypes : imageTypes;
+                    const savedTypes = result.filterSettings
+                        ? (result.filterSettings.allowedTypes || []).map(normalizeImageType).filter(Boolean)
+                        : imageTypes;
 
                     imageTypes.forEach(type => {
                         const checkbox = document.createElement('input');
@@ -131,7 +150,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function saveFilterSettings() {
-        const allowedTypes = Array.from(imageTypesContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+        const allowedTypes = Array.from(imageTypesContainer.querySelectorAll('input:checked'))
+            .map(cb => normalizeImageType(cb.value))
+            .filter(Boolean);
         const minSize = parseInt(minSizeInput.value, 10) || 0;
 
         const filterSettings = { allowedTypes, minSize };
@@ -143,22 +164,50 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // This function is injected into the page to get all unique image types
     function getImageTypes() {
+        const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
+        const IMAGE_TYPE_ALIASES = {
+            jpg: 'jpeg',
+            'svg+xml': 'svg',
+            'x-icon': 'ico',
+            'vnd.microsoft.icon': 'ico'
+        };
+
+        function normalizeImageType(type) {
+            if (!type) return null;
+
+            const normalized = type.toLowerCase();
+            const mappedType = IMAGE_TYPE_ALIASES[normalized] || normalized;
+
+            return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
+        }
+
+        function getNormalizedImageType(src) {
+            if (!src) return null;
+
+            const baseUrl = src.split('?')[0].split('#')[0];
+            const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
+
+            if (extensionMatch) {
+                return normalizeImageType(extensionMatch[1]);
+            }
+
+            const dataUrlMatch = src.match(/^data:image\/([^;,]+)/i);
+            if (dataUrlMatch) {
+                return normalizeImageType(dataUrlMatch[1]);
+            }
+
+            return null;
+        }
+
         const images = document.querySelectorAll('img');
         const types = new Set();
-        const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.gif', '.avif', '.bmp', '.ico'];
 
         images.forEach(img => {
             const src = img.getAttribute('src') || '';
-            const baseUrl = src.split('?')[0].split('#')[0];
-            const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9]+)$/);
+            const imageType = getNormalizedImageType(src);
 
-            if (extensionMatch && validExtensions.includes(extensionMatch[0].toLowerCase())) {
-                types.add(extensionMatch[1].toLowerCase());
-            } else if (src.startsWith('data:image/')) {
-                const mimeType = src.match(/data:image\/([^;]+);/);
-                if (mimeType) {
-                    types.add(mimeType[1]);
-                }
+            if (imageType) {
+                types.add(imageType);
             }
         });
 
