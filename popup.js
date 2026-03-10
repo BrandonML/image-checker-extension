@@ -227,13 +227,24 @@ function disableInspectorMode() {
     const overlays = document.querySelectorAll('.image-details-overlay');
     overlays.forEach(overlay => overlay.remove());
 
-    // Remove event listeners
+    // Disconnect mode observers to avoid duplicate observers/listeners on mode switches.
+    if (window.imageInspectorObserver) {
+        window.imageInspectorObserver.disconnect();
+        window.imageInspectorObserver = null;
+    }
+    if (window.imageDetailsObserver) {
+        window.imageDetailsObserver.disconnect();
+        window.imageDetailsObserver = null;
+    }
+
+    // Remove event listeners and mode markers
     document.querySelectorAll('img').forEach(img => {
         img.style.cursor = '';
         img.classList.remove('image-inspector-hover');
         img.removeEventListener('click', window.imageInspectorClickHandler);
         img.removeEventListener('mouseover', window.imageInspectorHoverHandler);
         img.removeEventListener('mouseout', window.imageInspectorOutHandler);
+        delete img.dataset.imageInspectorBound;
     });
 
     // Remove global click handler

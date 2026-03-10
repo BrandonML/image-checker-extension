@@ -52,6 +52,30 @@
         return Boolean(getNormalizedImageType(url));
     }
 
+    function attachInspectorListeners(img) {
+        if (!(img instanceof HTMLImageElement)) return;
+        if (img.dataset.imageInspectorBound === 'true') return;
+
+        const src = img.getAttribute('src') || '';
+        const hasValidExtension = checkValidImageUrl(src);
+        if (!hasValidExtension) return;
+
+        img.addEventListener('mouseover', window.imageInspectorHoverHandler);
+        img.addEventListener('mouseout', window.imageInspectorOutHandler);
+        img.addEventListener('click', window.imageInspectorClickHandler);
+        img.dataset.imageInspectorBound = 'true';
+    }
+
+    function processAddedNode(node) {
+        if (!(node instanceof Element)) return;
+
+        if (node instanceof HTMLImageElement) {
+            attachInspectorListeners(node);
+        }
+
+        node.querySelectorAll('img').forEach(attachInspectorListeners);
+    }
+
     // Current active overlay element
     let currentOverlay = null;
 
@@ -292,20 +316,24 @@
         showImageDetails(img, event);
     };
 
-    // Attach events to all images on the page
-    document.querySelectorAll('img').forEach(img => {
-        const src = img.getAttribute('src') || '';
+    // Attach events to existing images on first run.
+    document.querySelectorAll('img').forEach(attachInspectorListeners);
 
-        // Check if this is a valid image we want to inspect
-        const hasValidExtension = checkValidImageUrl(src);
+    // Observe DOM mutations to attach listeners only for newly added images.
+    if (window.imageInspectorObserver) {
+        window.imageInspectorObserver.disconnect();
+    }
 
-        if (hasValidExtension) {
-            // Use hover instead of click for showing details
-            img.addEventListener('mouseover', window.imageInspectorHoverHandler);
-            img.addEventListener('mouseout', window.imageInspectorOutHandler);
-
-            // Still keep click handler for hyperlinked images
-            img.addEventListener('click', window.imageInspectorClickHandler);
-        }
+    window.imageInspectorObserver = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(processAddedNode);
+        });
     });
+
+    if (document.body) {
+        window.imageInspectorObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
 })();
