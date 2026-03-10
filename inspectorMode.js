@@ -58,13 +58,35 @@
         return Boolean(getNormalizedImageType(url));
     }
 
+    function hasValidImageInSrcset(srcset) {
+        if (!srcset) return false;
+
+        return srcset
+            .split(',')
+            .map(candidate => candidate.trim())
+            .some(candidate => {
+                if (!candidate) return false;
+
+                const [candidateUrl] = candidate.split(/\s+/, 1);
+                return checkValidImageUrl(candidateUrl);
+            });
+    }
+
+    function isInspectableImage(img) {
+        const src = img.getAttribute('src') || '';
+        if (checkValidImageUrl(src)) return true;
+
+        const srcset = img.getAttribute('srcset') || '';
+        if (hasValidImageInSrcset(srcset)) return true;
+
+        return checkValidImageUrl(img.currentSrc || '');
+    }
+
     function attachInspectorListeners(img) {
         if (!(img instanceof HTMLImageElement)) return;
         if (imageInspectorBoundImages.has(img)) return;
 
-        const src = img.getAttribute('src') || '';
-        const hasValidExtension = checkValidImageUrl(src);
-        if (!hasValidExtension) return;
+        if (!isInspectableImage(img)) return;
 
         img.addEventListener('mouseover', window.imageInspectorHoverHandler);
         img.addEventListener('mouseout', window.imageInspectorOutHandler);
