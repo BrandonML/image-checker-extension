@@ -263,6 +263,26 @@
     node.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
   }
 
+  function cleanupRemovedImage(img) {
+    const existingOverlay = imageOverlayMap.get(img);
+    if (existingOverlay) {
+      existingOverlay.remove();
+      imageOverlayMap.delete(img);
+    }
+
+    processedImageState.delete(img);
+  }
+
+  function cleanupRemovedNode(node) {
+    if (!(node instanceof Element)) return;
+
+    if (node instanceof HTMLImageElement) {
+      cleanupRemovedImage(node);
+    }
+
+    node.querySelectorAll('img').forEach((img) => cleanupRemovedImage(img));
+  }
+
   chrome.storage.local.get('filterSettings', function (result) {
     const settings = result.filterSettings || {};
     const allowedTypes = Array.isArray(settings.allowedTypes)
@@ -279,6 +299,7 @@
     window.imageDetailsObserver = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => processAddedNode(node, allowedTypes, minSize));
+        mutation.removedNodes.forEach((node) => cleanupRemovedNode(node));
 
         if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
           processImage(mutation.target, allowedTypes, minSize);
