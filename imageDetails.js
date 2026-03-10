@@ -21,7 +21,7 @@
     if (!src) return null;
 
     const baseUrl = src.split('?')[0].split('#')[0];
-    const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
+    const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+-]+)$/);
 
     if (extensionMatch) {
       return normalizeImageType(extensionMatch[1]);
