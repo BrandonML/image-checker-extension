@@ -168,16 +168,36 @@
 
     const fileName = src.split('/').pop().split('?')[0];
 
-    // Create the details text
-    infoBox.innerHTML = `
-      <div style="margin-bottom: 5px"><strong>File:</strong> ${fileName || 'N/A'}</div>
-      <br/>
-      <div style="margin-bottom: 5px"><strong>Intrinsic:</strong> ${intrinsicWidth}×${intrinsicHeight}</div>
-      <div style="margin-bottom: 5px"><strong>Aspect ratio:</strong> ${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})</div>
-      <br/>
-      <div style="margin-bottom: 5px"><strong>Rendered:</strong> ${renderedWidth}×${renderedHeight}</div>
-      <div><strong>Aspect ratio:</strong> ${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})</div>
-    `;
+    const appendDetailsRow = (label, value, withMargin = true) => {
+      const row = document.createElement('div');
+      if (withMargin) {
+        row.style.marginBottom = '5px';
+      }
+
+      const labelElement = document.createElement('strong');
+      labelElement.textContent = `${label}:`;
+
+      const valueElement = document.createElement('span');
+      valueElement.textContent = ` ${value}`;
+
+      row.appendChild(labelElement);
+      row.appendChild(valueElement);
+      infoBox.appendChild(row);
+    };
+
+    const appendSpacer = () => {
+      const spacer = document.createElement('div');
+      spacer.style.marginBottom = '5px';
+      infoBox.appendChild(spacer);
+    };
+
+    appendDetailsRow('File', fileName || 'N/A');
+    appendSpacer();
+    appendDetailsRow('Intrinsic', `${intrinsicWidth}×${intrinsicHeight}`);
+    appendDetailsRow('Aspect ratio', `${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`);
+    appendSpacer();
+    appendDetailsRow('Rendered', `${renderedWidth}×${renderedHeight}`);
+    appendDetailsRow('Aspect ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`, false);
 
     // Add elements to the container
     overlayContainer.appendChild(highlightBorder);
