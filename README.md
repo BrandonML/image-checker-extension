@@ -42,6 +42,8 @@ A [Chrome extension](https://chromewebstore.google.com/detail/image-details-insp
 - **Smart Positioning**: Overlays automatically position themselves to avoid blocking content
 - **Advanced Filtering**: Filter images by file type and minimum size
 - **Color-coded Overlays**: Each image gets a unique color for easy identification
+- **Dynamic Page Support**: Works with images that are added, removed, or updated after initial page load (including lazy-loaded content)
+- **Tab-aware Mode State**: Mode selection is scoped to the current tab and resets on navigation for predictable behavior
 
 ## Installation
 
@@ -64,6 +66,7 @@ A [Chrome extension](https://chromewebstore.google.com/detail/image-details-insp
   - Hover to show details, move away to hide
   - Prevents navigation when clicking on linked images
   - Visual highlight border around hovered images
+  - Handles dynamically changing image sources, including `srcset` updates
 
 #### 📊 Show All Mode
 - **How it works**: Displays details for all images on the page simultaneously
@@ -146,7 +149,7 @@ When using "Show All" mode, you can filter which images are displayed:
 
 ### Images Not Showing Overlays
 1. Ensure the extension is enabled
-2. Check if images have valid file extensions
+2. Check if images have a detectable image type (extension or data URL MIME type)
 3. Verify minimum size filter isn't too restrictive
 4. Try refreshing the page and reactivating
 
