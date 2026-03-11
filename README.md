@@ -43,6 +43,8 @@ A [Chrome extension](https://chromewebstore.google.com/detail/image-details-insp
 - **Advanced Filtering**: Filter images by file type and minimum size
 - **Color-coded Overlays**: Each image gets a unique color for easy identification
 - **Dynamic Page Support**: Works with images that are added, removed, or updated after initial page load (including lazy-loaded content)
+- **Responsive Show All Overlays**: Show All mode refreshes overlays when image sizes/layouts change so rendered dimensions stay accurate
+- **Smart Source Detection**: Uses rendered image sources (`currentSrc`) with `src`/`srcset` fallbacks for better format detection and labels
 - **Tab-aware Mode State**: Mode selection is scoped to the current tab and resets on navigation for predictable behavior
 
 ## Installation
@@ -152,6 +154,7 @@ When using "Show All" mode, you can filter which images are displayed:
 2. Check if images have a detectable image type (extension or data URL MIME type)
 3. Verify minimum size filter isn't too restrictive
 4. Try refreshing the page and reactivating
+5. On restricted Chrome pages (e.g., `chrome://` URLs), script injection is blocked and the popup will show a status error
 
 ### Overlays in Wrong Position
 - This can happen on pages with complex layouts

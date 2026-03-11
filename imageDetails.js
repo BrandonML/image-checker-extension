@@ -21,7 +21,7 @@
     if (!src) return null;
 
     const baseUrl = src.split('?')[0].split('#')[0];
-    const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+-]+)$/);
+    const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
 
     if (extensionMatch) {
       return normalizeImageType(extensionMatch[1]);
@@ -37,6 +37,10 @@
 
   const processedImageState = new WeakMap();
   const imageOverlayMap = new WeakMap();
+  const overlaidImages = new Set();
+  let refreshScheduled = false;
+  let refreshAllPending = false;
+  const pendingRefreshImages = new Set();
 
   function formatAspectRatio(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
@@ -67,8 +71,26 @@
     };
   }
 
+  function getCandidateSourceFromSrcset(srcset) {
+    if (!srcset) return '';
+
+    const firstCandidate = srcset
+      .split(',')
+      .map((candidate) => candidate.trim())
+      .find(Boolean);
+
+    if (!firstCandidate) return '';
+
+    const [candidateUrl] = firstCandidate.split(/\s+/, 1);
+    return candidateUrl || '';
+  }
+
+  function getImageSource(img) {
+    return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
+  }
+
   function shouldRenderOverlay(img, allowedTypes, minSize) {
-    const src = img.getAttribute('src') || '';
+    const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
 
@@ -85,7 +107,7 @@
   }
 
   function createOverlayForImage(img) {
-    const src = img.getAttribute('src') || '';
+    const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
     const renderedHeight = Math.round(imgRect.height);
@@ -181,7 +203,7 @@
     const intrinsicRatioDetails = formatRatioDetails(intrinsicWidth, intrinsicHeight);
     const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
-    const fileName = src.split('/').pop().split('?')[0];
+    const fileName = src.split('/').pop().split('?')[0].split('#')[0];
 
     const appendDetailsRow = (label, value, withMargin = true) => {
       const row = document.createElement('div');
@@ -224,15 +246,21 @@
 
     document.body.appendChild(overlayContainer);
     imageOverlayMap.set(img, overlayContainer);
+    overlaidImages.add(img);
   }
 
   function processImage(img, allowedTypes, minSize) {
     if (!(img instanceof HTMLImageElement)) return;
 
+    const rect = img.getBoundingClientRect();
     const currentSignature = [
-      img.currentSrc || img.getAttribute('src') || '',
+      getImageSource(img),
       img.naturalWidth || 0,
-      img.naturalHeight || 0
+      img.naturalHeight || 0,
+      Math.round(rect.width),
+      Math.round(rect.height),
+      Math.round(rect.top + (window.pageYOffset || document.documentElement.scrollTop)),
+      Math.round(rect.left + (window.pageXOffset || document.documentElement.scrollLeft))
     ].join('|');
 
     if (processedImageState.get(img) === currentSignature) {
@@ -244,6 +272,7 @@
       if (existingOverlay) {
         existingOverlay.remove();
         imageOverlayMap.delete(img);
+        overlaidImages.delete(img);
       }
       processedImageState.set(img, currentSignature);
       return;
@@ -253,14 +282,54 @@
     processedImageState.set(img, currentSignature);
   }
 
+  function refreshImages(images, allowedTypes, minSize) {
+    images.forEach((img) => processImage(img, allowedTypes, minSize));
+  }
+
+  function scheduleRefresh(allowedTypes, minSize, images = null) {
+    if (images === null) {
+      refreshAllPending = true;
+    } else {
+      images.forEach((img) => pendingRefreshImages.add(img));
+    }
+
+    if (refreshScheduled) return;
+
+    refreshScheduled = true;
+    window.requestAnimationFrame(() => {
+      refreshScheduled = false;
+
+      if (refreshAllPending) {
+        refreshAllPending = false;
+        pendingRefreshImages.clear();
+        refreshImages(document.querySelectorAll('img'), allowedTypes, minSize);
+        return;
+      }
+
+      if (pendingRefreshImages.size > 0) {
+        const imagesToRefresh = Array.from(pendingRefreshImages);
+        pendingRefreshImages.clear();
+        refreshImages(imagesToRefresh, allowedTypes, minSize);
+      }
+    });
+  }
+
   function processAddedNode(node, allowedTypes, minSize) {
     if (!(node instanceof Element)) return;
 
     if (node instanceof HTMLImageElement) {
       processImage(node, allowedTypes, minSize);
+      if (window.imageDetailsResizeObserver) {
+        window.imageDetailsResizeObserver.observe(node);
+      }
     }
 
-    node.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+    node.querySelectorAll('img').forEach((img) => {
+      processImage(img, allowedTypes, minSize);
+      if (window.imageDetailsResizeObserver) {
+        window.imageDetailsResizeObserver.observe(img);
+      }
+    });
   }
 
   function cleanupRemovedImage(img) {
@@ -269,8 +338,13 @@
       existingOverlay.remove();
       imageOverlayMap.delete(img);
     }
+    overlaidImages.delete(img);
 
     processedImageState.delete(img);
+
+    if (window.imageDetailsResizeObserver) {
+      window.imageDetailsResizeObserver.unobserve(img);
+    }
   }
 
   function cleanupRemovedNode(node) {
@@ -290,7 +364,7 @@
       : null;
     const minSize = settings.minSize || 0;
 
-    document.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+    scheduleRefresh(allowedTypes, minSize, null);
 
     if (window.imageDetailsObserver) {
       window.imageDetailsObserver.disconnect();
@@ -315,5 +389,22 @@
         attributeFilter: ['src', 'srcset']
       });
     }
+
+    if (window.imageDetailsResizeObserver) {
+      window.imageDetailsResizeObserver.disconnect();
+    }
+
+    window.imageDetailsResizeObserver = new ResizeObserver(() => {
+      scheduleRefresh(allowedTypes, minSize, overlaidImages);
+    });
+
+    document.querySelectorAll('img').forEach((img) => window.imageDetailsResizeObserver.observe(img));
+
+    if (window.imageDetailsResizeHandler) {
+      window.removeEventListener('resize', window.imageDetailsResizeHandler);
+    }
+
+    window.imageDetailsResizeHandler = () => scheduleRefresh(allowedTypes, minSize, overlaidImages);
+    window.addEventListener('resize', window.imageDetailsResizeHandler);
   });
 })();
