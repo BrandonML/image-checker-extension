@@ -76,31 +76,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Add event listeners to mode selectors
     document.querySelectorAll('input[name="mode"]').forEach(radio => {
-        radio.addEventListener('change', function () {
+        radio.addEventListener('change', async function () {
             const mode = this.value;
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (!tabs || tabs.length === 0) {
-                    setStatusMessage('No active tab found.', true);
-                    return;
-                }
+            const tab = await getActiveTab();
 
-                const currentTabId = tabs[0].id;
+            if (!tab) {
+                setStatusMessage('No active tab found.', true);
+                return;
+            }
 
-                chrome.storage.local.get('modeByTab', function (result) {
-                    const modeByTab = result.modeByTab || {};
-                    modeByTab[currentTabId] = mode;
-                    chrome.storage.local.set({ modeByTab });
-                });
+            const modeApplied = await applyMode(mode, tab.id);
+            if (!modeApplied) {
+                return;
+            }
 
-                applyMode(mode);
-
-                if (mode === 'all') {
-                    filterControls.style.display = 'block';
-                    populateImageTypes();
-                } else {
-                    filterControls.style.display = 'none';
-                }
+            chrome.storage.local.get('modeByTab', function (result) {
+                const modeByTab = result.modeByTab || {};
+                modeByTab[tab.id] = mode;
+                chrome.storage.local.set({ modeByTab });
             });
+
+            if (mode === 'all') {
+                filterControls.style.display = 'block';
+                populateImageTypes();
+            } else {
+                filterControls.style.display = 'none';
+            }
         });
     });
 
@@ -123,35 +124,37 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function applyMode(mode) {
-        const tab = await getActiveTab();
-        if (!tab) {
+    async function applyMode(mode, tabId) {
+        const activeTabId = tabId || (await getActiveTab())?.id;
+        if (!activeTabId) {
             setStatusMessage('Unable to detect active tab.', true);
-            return;
+            return false;
         }
 
         try {
             // Always disable the current mode before enabling a new one.
             await executeScriptSafe({
-                target: { tabId: tab.id },
+                target: { tabId: activeTabId },
                 function: disableInspectorMode,
             });
 
             if (mode === 'inspector') {
                 await executeScriptSafe({
-                    target: { tabId: tab.id },
+                    target: { tabId: activeTabId },
                     files: ['inspectorMode.js'],
                 });
             } else if (mode === 'all') {
                 await executeScriptSafe({
-                    target: { tabId: tab.id },
+                    target: { tabId: activeTabId },
                     files: ['imageDetails.js'],
                 });
             }
 
             updateStatus(mode);
+            return true;
         } catch (error) {
             setStatusMessage(`Cannot run on this page: ${error.message}`, true);
+            return false;
         }
     }
 
@@ -210,9 +213,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const minSize = parseInt(minSizeInput.value, 10) || 0;
 
         const filterSettings = { allowedTypes, minSize };
-        chrome.storage.local.set({ filterSettings }, function () {
-            // Re-apply the 'all' mode to reflect filter changes
-            applyMode('all');
+        chrome.storage.local.set({ filterSettings }, async function () {
+            // Re-apply filters only when show-all mode is active for this tab.
+            const tab = await getActiveTab();
+            if (!tab) return;
+
+            chrome.storage.local.get('modeByTab', function (result) {
+                const modeByTab = result.modeByTab || {};
+                if (modeByTab[tab.id] === 'all') {
+                    applyMode('all', tab.id);
+                }
+            });
         });
     }
 
@@ -253,12 +264,29 @@ document.addEventListener('DOMContentLoaded', function () {
             return null;
         }
 
+        function getCandidateSourceFromSrcset(srcset) {
+            if (!srcset) return '';
+
+            const firstCandidate = srcset
+                .split(',')
+                .map((candidate) => candidate.trim())
+                .find(Boolean);
+
+            if (!firstCandidate) return '';
+
+            const [candidateUrl] = firstCandidate.split(/\s+/, 1);
+            return candidateUrl || '';
+        }
+
+        function getImageSource(img) {
+            return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
+        }
+
         const images = document.querySelectorAll('img');
         const types = new Set();
 
         images.forEach(img => {
-            const src = img.getAttribute('src') || '';
-            const imageType = getNormalizedImageType(src);
+            const imageType = getNormalizedImageType(getImageSource(img));
 
             if (imageType) {
                 types.add(imageType);
@@ -293,10 +321,6 @@ function disableInspectorMode() {
     if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.disconnect();
         window.imageDetailsResizeObserver = null;
-    }
-    if (window.imageDetailsScrollHandler) {
-        window.removeEventListener('scroll', window.imageDetailsScrollHandler, true);
-        window.imageDetailsScrollHandler = null;
     }
     if (window.imageDetailsResizeHandler) {
         window.removeEventListener('resize', window.imageDetailsResizeHandler);

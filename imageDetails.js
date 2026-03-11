@@ -21,7 +21,7 @@
     if (!src) return null;
 
     const baseUrl = src.split('?')[0].split('#')[0];
-    const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+-]+)$/);
+    const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
 
     if (extensionMatch) {
       return normalizeImageType(extensionMatch[1]);
@@ -376,19 +376,11 @@
 
     document.querySelectorAll('img').forEach((img) => window.imageDetailsResizeObserver.observe(img));
 
-    const updateOnViewportChange = () => scheduleRefresh(allowedTypes, minSize);
-
-    if (window.imageDetailsScrollHandler) {
-      window.removeEventListener('scroll', window.imageDetailsScrollHandler, true);
-    }
     if (window.imageDetailsResizeHandler) {
       window.removeEventListener('resize', window.imageDetailsResizeHandler);
     }
 
-    window.imageDetailsScrollHandler = updateOnViewportChange;
-    window.imageDetailsResizeHandler = updateOnViewportChange;
-
-    window.addEventListener('scroll', window.imageDetailsScrollHandler, true);
+    window.imageDetailsResizeHandler = () => scheduleRefresh(allowedTypes, minSize);
     window.addEventListener('resize', window.imageDetailsResizeHandler);
   });
 })();
