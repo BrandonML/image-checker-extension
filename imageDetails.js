@@ -37,7 +37,10 @@
 
   const processedImageState = new WeakMap();
   const imageOverlayMap = new WeakMap();
+  const overlaidImages = new Set();
   let refreshScheduled = false;
+  let refreshAllPending = false;
+  const pendingRefreshImages = new Set();
 
   function formatAspectRatio(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
@@ -243,6 +246,7 @@
 
     document.body.appendChild(overlayContainer);
     imageOverlayMap.set(img, overlayContainer);
+    overlaidImages.add(img);
   }
 
   function processImage(img, allowedTypes, minSize) {
@@ -268,6 +272,7 @@
       if (existingOverlay) {
         existingOverlay.remove();
         imageOverlayMap.delete(img);
+        overlaidImages.delete(img);
       }
       processedImageState.set(img, currentSignature);
       return;
@@ -277,17 +282,35 @@
     processedImageState.set(img, currentSignature);
   }
 
-  function refreshAllImages(allowedTypes, minSize) {
-    document.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+  function refreshImages(images, allowedTypes, minSize) {
+    images.forEach((img) => processImage(img, allowedTypes, minSize));
   }
 
-  function scheduleRefresh(allowedTypes, minSize) {
+  function scheduleRefresh(allowedTypes, minSize, images = null) {
+    if (images === null) {
+      refreshAllPending = true;
+    } else {
+      images.forEach((img) => pendingRefreshImages.add(img));
+    }
+
     if (refreshScheduled) return;
 
     refreshScheduled = true;
     window.requestAnimationFrame(() => {
       refreshScheduled = false;
-      refreshAllImages(allowedTypes, minSize);
+
+      if (refreshAllPending) {
+        refreshAllPending = false;
+        pendingRefreshImages.clear();
+        refreshImages(document.querySelectorAll('img'), allowedTypes, minSize);
+        return;
+      }
+
+      if (pendingRefreshImages.size > 0) {
+        const imagesToRefresh = Array.from(pendingRefreshImages);
+        pendingRefreshImages.clear();
+        refreshImages(imagesToRefresh, allowedTypes, minSize);
+      }
     });
   }
 
@@ -315,6 +338,7 @@
       existingOverlay.remove();
       imageOverlayMap.delete(img);
     }
+    overlaidImages.delete(img);
 
     processedImageState.delete(img);
 
@@ -340,7 +364,7 @@
       : null;
     const minSize = settings.minSize || 0;
 
-    refreshAllImages(allowedTypes, minSize);
+    scheduleRefresh(allowedTypes, minSize, null);
 
     if (window.imageDetailsObserver) {
       window.imageDetailsObserver.disconnect();
@@ -371,7 +395,7 @@
     }
 
     window.imageDetailsResizeObserver = new ResizeObserver(() => {
-      scheduleRefresh(allowedTypes, minSize);
+      scheduleRefresh(allowedTypes, minSize, overlaidImages);
     });
 
     document.querySelectorAll('img').forEach((img) => window.imageDetailsResizeObserver.observe(img));
@@ -380,7 +404,7 @@
       window.removeEventListener('resize', window.imageDetailsResizeHandler);
     }
 
-    window.imageDetailsResizeHandler = () => scheduleRefresh(allowedTypes, minSize);
+    window.imageDetailsResizeHandler = () => scheduleRefresh(allowedTypes, minSize, overlaidImages);
     window.addEventListener('resize', window.imageDetailsResizeHandler);
   });
 })();
