@@ -21,14 +21,45 @@ document.addEventListener('DOMContentLoaded', function () {
         return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
     }
 
+    function setStatusMessage(message, isError = false) {
+        status.textContent = message;
+        status.style.color = isError ? '#b91c1c' : '';
+    }
+
+    async function getActiveTab() {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        return tabs[0] || null;
+    }
+
+    function executeScriptSafe(options) {
+        return new Promise((resolve, reject) => {
+            chrome.scripting.executeScript(options, (results) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+
+                resolve(results || []);
+            });
+        });
+    }
+
     // Restore saved settings
     chrome.storage.local.get(['modeByTab', 'filterSettings'], function (result) {
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+            if (!tabs || tabs.length === 0) {
+                setStatusMessage('No active tab found.', true);
+                return;
+            }
+
             const currentTabId = tabs[0].id;
             const modeByTab = result.modeByTab || {};
             const mode = modeByTab[currentTabId] || 'off';
 
-            document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+            const modeInput = document.querySelector(`input[name="mode"][value="${mode}"]`);
+            if (modeInput) {
+                modeInput.checked = true;
+            }
             updateStatus(mode);
 
             if (mode === 'all') {
@@ -48,6 +79,11 @@ document.addEventListener('DOMContentLoaded', function () {
         radio.addEventListener('change', function () {
             const mode = this.value;
             chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                if (!tabs || tabs.length === 0) {
+                    setStatusMessage('No active tab found.', true);
+                    return;
+                }
+
                 const currentTabId = tabs[0].id;
 
                 chrome.storage.local.get('modeByTab', function (result) {
@@ -56,7 +92,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     chrome.storage.local.set({ modeByTab });
                 });
 
-                updateStatus(mode);
                 applyMode(mode);
 
                 if (mode === 'all') {
@@ -77,46 +112,63 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateStatus(mode) {
         switch (mode) {
             case 'inspector':
-                status.textContent = 'Inspector mode is active.';
+                setStatusMessage('Inspector mode is active.');
                 break;
             case 'all':
-                status.textContent = 'Showing details for all images.';
+                setStatusMessage('Showing details for all images.');
                 break;
             default:
-                status.textContent = 'Select a mode to begin.';
+                setStatusMessage('Select a mode to begin.');
                 break;
         }
     }
 
     async function applyMode(mode) {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tab = await getActiveTab();
+        if (!tab) {
+            setStatusMessage('Unable to detect active tab.', true);
+            return;
+        }
 
-        // Always disable the current mode before enabling a new one.
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: disableInspectorMode,
-        });
+        try {
+            // Always disable the current mode before enabling a new one.
+            await executeScriptSafe({
+                target: { tabId: tab.id },
+                function: disableInspectorMode,
+            });
 
-        if (mode === 'inspector') {
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                files: ['inspectorMode.js'],
-            });
-        } else if (mode === 'all') {
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                files: ['imageDetails.js'],
-            });
+            if (mode === 'inspector') {
+                await executeScriptSafe({
+                    target: { tabId: tab.id },
+                    files: ['inspectorMode.js'],
+                });
+            } else if (mode === 'all') {
+                await executeScriptSafe({
+                    target: { tabId: tab.id },
+                    files: ['imageDetails.js'],
+                });
+            }
+
+            updateStatus(mode);
+        } catch (error) {
+            setStatusMessage(`Cannot run on this page: ${error.message}`, true);
         }
     }
 
     async function populateImageTypes() {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: getImageTypes,
-        }, (injectionResults) => {
-            const imageTypes = injectionResults[0].result;
+        const tab = await getActiveTab();
+        if (!tab) {
+            imageTypesContainer.textContent = 'No active tab found.';
+            return;
+        }
+
+        try {
+            const injectionResults = await executeScriptSafe({
+                target: { tabId: tab.id },
+                function: getImageTypes,
+            });
+
+            const imageTypes = injectionResults[0] ? injectionResults[0].result : [];
             imageTypesContainer.innerHTML = ''; // Clear existing checkboxes
 
             if (imageTypes && imageTypes.length > 0) {
@@ -146,7 +198,9 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 imageTypesContainer.textContent = 'No image types found on this page.';
             }
-        });
+        } catch (error) {
+            imageTypesContainer.textContent = `Cannot inspect image types on this page: ${error.message}`;
+        }
     }
 
     function saveFilterSettings() {
@@ -235,6 +289,18 @@ function disableInspectorMode() {
     if (window.imageDetailsObserver) {
         window.imageDetailsObserver.disconnect();
         window.imageDetailsObserver = null;
+    }
+    if (window.imageDetailsResizeObserver) {
+        window.imageDetailsResizeObserver.disconnect();
+        window.imageDetailsResizeObserver = null;
+    }
+    if (window.imageDetailsScrollHandler) {
+        window.removeEventListener('scroll', window.imageDetailsScrollHandler, true);
+        window.imageDetailsScrollHandler = null;
+    }
+    if (window.imageDetailsResizeHandler) {
+        window.removeEventListener('resize', window.imageDetailsResizeHandler);
+        window.imageDetailsResizeHandler = null;
     }
 
     // Remove event listeners and mode markers

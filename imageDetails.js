@@ -37,6 +37,7 @@
 
   const processedImageState = new WeakMap();
   const imageOverlayMap = new WeakMap();
+  let refreshScheduled = false;
 
   function formatAspectRatio(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
@@ -67,8 +68,26 @@
     };
   }
 
+  function getCandidateSourceFromSrcset(srcset) {
+    if (!srcset) return '';
+
+    const firstCandidate = srcset
+      .split(',')
+      .map((candidate) => candidate.trim())
+      .find(Boolean);
+
+    if (!firstCandidate) return '';
+
+    const [candidateUrl] = firstCandidate.split(/\s+/, 1);
+    return candidateUrl || '';
+  }
+
+  function getImageSource(img) {
+    return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
+  }
+
   function shouldRenderOverlay(img, allowedTypes, minSize) {
-    const src = img.getAttribute('src') || '';
+    const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
 
@@ -85,7 +104,7 @@
   }
 
   function createOverlayForImage(img) {
-    const src = img.getAttribute('src') || '';
+    const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
     const renderedHeight = Math.round(imgRect.height);
@@ -181,7 +200,7 @@
     const intrinsicRatioDetails = formatRatioDetails(intrinsicWidth, intrinsicHeight);
     const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
-    const fileName = src.split('/').pop().split('?')[0];
+    const fileName = src.split('/').pop().split('?')[0].split('#')[0];
 
     const appendDetailsRow = (label, value, withMargin = true) => {
       const row = document.createElement('div');
@@ -229,10 +248,15 @@
   function processImage(img, allowedTypes, minSize) {
     if (!(img instanceof HTMLImageElement)) return;
 
+    const rect = img.getBoundingClientRect();
     const currentSignature = [
-      img.currentSrc || img.getAttribute('src') || '',
+      getImageSource(img),
       img.naturalWidth || 0,
-      img.naturalHeight || 0
+      img.naturalHeight || 0,
+      Math.round(rect.width),
+      Math.round(rect.height),
+      Math.round(rect.top + (window.pageYOffset || document.documentElement.scrollTop)),
+      Math.round(rect.left + (window.pageXOffset || document.documentElement.scrollLeft))
     ].join('|');
 
     if (processedImageState.get(img) === currentSignature) {
@@ -253,14 +277,36 @@
     processedImageState.set(img, currentSignature);
   }
 
+  function refreshAllImages(allowedTypes, minSize) {
+    document.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+  }
+
+  function scheduleRefresh(allowedTypes, minSize) {
+    if (refreshScheduled) return;
+
+    refreshScheduled = true;
+    window.requestAnimationFrame(() => {
+      refreshScheduled = false;
+      refreshAllImages(allowedTypes, minSize);
+    });
+  }
+
   function processAddedNode(node, allowedTypes, minSize) {
     if (!(node instanceof Element)) return;
 
     if (node instanceof HTMLImageElement) {
       processImage(node, allowedTypes, minSize);
+      if (window.imageDetailsResizeObserver) {
+        window.imageDetailsResizeObserver.observe(node);
+      }
     }
 
-    node.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+    node.querySelectorAll('img').forEach((img) => {
+      processImage(img, allowedTypes, minSize);
+      if (window.imageDetailsResizeObserver) {
+        window.imageDetailsResizeObserver.observe(img);
+      }
+    });
   }
 
   function cleanupRemovedImage(img) {
@@ -271,6 +317,10 @@
     }
 
     processedImageState.delete(img);
+
+    if (window.imageDetailsResizeObserver) {
+      window.imageDetailsResizeObserver.unobserve(img);
+    }
   }
 
   function cleanupRemovedNode(node) {
@@ -290,7 +340,7 @@
       : null;
     const minSize = settings.minSize || 0;
 
-    document.querySelectorAll('img').forEach((img) => processImage(img, allowedTypes, minSize));
+    refreshAllImages(allowedTypes, minSize);
 
     if (window.imageDetailsObserver) {
       window.imageDetailsObserver.disconnect();
@@ -315,5 +365,30 @@
         attributeFilter: ['src', 'srcset']
       });
     }
+
+    if (window.imageDetailsResizeObserver) {
+      window.imageDetailsResizeObserver.disconnect();
+    }
+
+    window.imageDetailsResizeObserver = new ResizeObserver(() => {
+      scheduleRefresh(allowedTypes, minSize);
+    });
+
+    document.querySelectorAll('img').forEach((img) => window.imageDetailsResizeObserver.observe(img));
+
+    const updateOnViewportChange = () => scheduleRefresh(allowedTypes, minSize);
+
+    if (window.imageDetailsScrollHandler) {
+      window.removeEventListener('scroll', window.imageDetailsScrollHandler, true);
+    }
+    if (window.imageDetailsResizeHandler) {
+      window.removeEventListener('resize', window.imageDetailsResizeHandler);
+    }
+
+    window.imageDetailsScrollHandler = updateOnViewportChange;
+    window.imageDetailsResizeHandler = updateOnViewportChange;
+
+    window.addEventListener('scroll', window.imageDetailsScrollHandler, true);
+    window.addEventListener('resize', window.imageDetailsResizeHandler);
   });
 })();
