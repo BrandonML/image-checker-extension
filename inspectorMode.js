@@ -97,7 +97,8 @@
             clearAllOverlays: true,
             trackOverlay: false,
             includePerformanceSection: false,
-            includeSourceMetadata: false
+            includeSourceMetadata: false,
+            allowExternalPlacement: true
         });
     }
 

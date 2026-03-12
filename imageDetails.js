@@ -451,7 +451,8 @@
       clearAllOverlays = false,
       trackOverlay = true,
       includePerformanceSection = true,
-      includeSourceMetadata = true
+      includeSourceMetadata = true,
+      allowExternalPlacement = false
     } = options;
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
@@ -502,12 +503,16 @@
       writingMode: 'horizontal-tb',
       textOrientation: 'mixed',
       direction: 'ltr',
-      lineHeight: '1.35'
+      lineHeight: '1.35',
+      maxHeight: '100%',
+      overflow: 'hidden'
     });
 
-    applyOverlayVerticalPlacement(infoBox, imgRect);
+    if (allowExternalPlacement) {
+      applyOverlayVerticalPlacement(infoBox, imgRect);
+    }
 
-    if (infoBox.style.top === '100%' || infoBox.style.bottom === '100%') {
+    if (allowExternalPlacement && (infoBox.style.top === '100%' || infoBox.style.bottom === '100%')) {
       const connector = document.createElement('div');
       Object.assign(connector.style, {
         position: 'absolute',
