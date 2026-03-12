@@ -40,7 +40,7 @@ A [Chrome extension](https://chromewebstore.google.com/detail/image-details-insp
 - **Detailed Image Information**: View both intrinsic (original) and rendered dimensions
 - **Aspect Ratio Calculations**: See aspect ratios in both ratio format (16:9) and decimal format (1.78)
 - **Smart Positioning**: Overlays automatically position themselves to avoid blocking content
-- **Advanced Filtering**: Filter images by file type and minimum size
+- **Advanced Filtering**: Filter images by file type, minimum width, and intrinsic aspect ratio criteria
 - **Color-coded Overlays**: Each image gets a unique color for easy identification
 - **Dynamic Page Support**: Works with images that are added, removed, or updated after initial page load (including lazy-loaded content)
 - **Responsive Show All Overlays**: Show All mode refreshes overlays when image sizes/layouts change so rendered dimensions stay accurate
@@ -106,7 +106,7 @@ Aspect ratio: 16:9 (1.78)
 When using "Show All" mode, you can filter which images are displayed:
 
 #### Filter by File Type
-- Check/uncheck image formats (JPG, PNG, WebP, SVG, etc.)
+- Check/uncheck specific filter options: **JPG, PNG, GIF, SVG, and WEBP**
 - Only selected formats will show overlays
 - Useful for focusing on specific image types
 
@@ -115,13 +115,23 @@ When using "Show All" mode, you can filter which images are displayed:
 - Images smaller than this width won't show overlays
 - Helps filter out small icons, buttons, or decorative images
 
+#### Aspect Ratio Filter (Intrinsic)
+- Uses **intrinsic dimensions** (`naturalWidth / naturalHeight`) as the source of truth
+- Filter modes:
+  - **Disabled**
+  - **Have selected AR**
+  - **Do NOT have selected AR**
+- Common AR presets include: `1:1`, `4:3`, `3:4`, `3:2`, `2:3`, `16:9`, `9:16`, `21:9`, `16:10`, `5:4`, `32:9`
+- Aspect-ratio matching uses a small tolerance (~1.5%) to avoid brittle exact matches
+- Works alongside other filters (type + minimum width + AR)
+
 ### Tips for Best Results
 
 1. **Use Inspector Mode** for detailed analysis of specific images
 2. **Use Show All Mode** to get a quick overview of all images on a page
-3. **Apply filters** in Show All mode to reduce clutter on image-heavy pages
+3. **Apply combined filters** in Show All mode (type + min width + AR) to reduce clutter on image-heavy pages
 4. **Check both intrinsic and rendered sizes** to identify scaling issues
-5. **Look for aspect ratio differences** to spot distorted images
+5. **Use AR mode = "Do NOT have selected AR"** to quickly find non-compliant images (e.g., not 1:1)
 
 ## Supported Image Formats
 
@@ -151,7 +161,7 @@ When using "Show All" mode, you can filter which images are displayed:
 
 ### Images Not Showing Overlays
 1. Ensure the extension is enabled
-2. Check if images have a detectable image type (extension or data URL MIME type)
+2. Check if images have a detectable image type (URL extension, query hints, picture source type, or data URL MIME type)
 3. Verify minimum size filter isn't too restrictive
 4. Try refreshing the page and reactivating
 5. On restricted Chrome pages (e.g., `chrome://` URLs), script injection is blocked and the popup will show a status error
