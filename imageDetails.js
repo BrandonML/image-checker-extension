@@ -309,7 +309,15 @@
     return true;
   }
 
-  async function createOverlayForImage(img) {
+  async function createOverlayForImage(img, options = {}) {
+    if (!(img instanceof HTMLImageElement)) return null;
+
+    const {
+      clearAllOverlays = false,
+      trackOverlay = true,
+      includePerformanceSection = true,
+      includeSourceMetadata = true
+    } = options;
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
@@ -398,7 +406,7 @@
     const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
     const fileName = src.split('/').pop().split('?')[0].split('#')[0];
-    const imageMetrics = await getImageMetrics(src);
+    const imageMetrics = includePerformanceSection ? await getImageMetrics(src) : null;
     const ramEstimateBytes = intrinsicWidth * intrinsicHeight * 4;
     const ramEstimateDisplay = formatBytes(ramEstimateBytes);
     const loadingStrategy = img.loading || 'auto';
@@ -437,14 +445,19 @@
 
     const fileSection = createSection();
     fileSection.appendChild(createRow('Filename', fileName || 'N/A', true));
+    if (includeSourceMetadata) {
+      fileSection.appendChild(createRow('Source', src || 'N/A'));
+    }
 
     const performanceSection = createSection();
-    performanceSection.appendChild(
-      createRow(
-        'Performance',
-        `type=${imageMetrics.fileType} • size=${imageMetrics.fileSize} • ram=${ramEstimateDisplay} • loading=${loadingStrategy} • fetchpriority=${fetchPriority}`
-      )
-    );
+    if (includePerformanceSection && imageMetrics) {
+      performanceSection.appendChild(
+        createRow(
+          'Performance',
+          `type=${imageMetrics.fileType} • size=${imageMetrics.fileSize} • ram=${ramEstimateDisplay} • loading=${loadingStrategy} • fetchpriority=${fetchPriority}`
+        )
+      );
+    }
 
     const geometrySection = document.createElement('div');
     Object.assign(geometrySection.style, {
@@ -465,11 +478,20 @@
     geometrySection.appendChild(renderedColumn);
 
     infoBox.appendChild(fileSection);
-    infoBox.appendChild(performanceSection);
+    if (includePerformanceSection && performanceSection.childNodes.length > 0) {
+      infoBox.appendChild(performanceSection);
+    }
     infoBox.appendChild(geometrySection);
 
     overlayContainer.appendChild(highlightBorder);
     overlayContainer.appendChild(infoBox);
+
+    if (clearAllOverlays) {
+      const existingOverlays = document.querySelectorAll('.image-details-overlay');
+      existingOverlays.forEach((overlay) => overlay.remove());
+      imageOverlayMap.delete(img);
+      overlaidImages.clear();
+    }
 
     const existingOverlay = imageOverlayMap.get(img);
     if (existingOverlay) {
@@ -477,9 +499,24 @@
     }
 
     document.body.appendChild(overlayContainer);
-    imageOverlayMap.set(img, overlayContainer);
-    overlaidImages.add(img);
+
+    if (trackOverlay) {
+      imageOverlayMap.set(img, overlayContainer);
+      overlaidImages.add(img);
+    }
+
+    return overlayContainer;
   }
+
+  function clearAllOverlays() {
+    document.querySelectorAll('.image-details-overlay').forEach((overlay) => overlay.remove());
+    overlaidImages.clear();
+  }
+
+  window.imageDetailsAPI = {
+    createOverlayForImage,
+    clearAllOverlays
+  };
 
   async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     if (!(img instanceof HTMLImageElement)) return;
