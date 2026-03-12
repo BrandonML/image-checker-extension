@@ -203,6 +203,55 @@
     return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
   }
 
+  function formatBytes(value) {
+    if (!Number.isFinite(value) || value < 0) return 'N/A';
+
+    if (value < 1024) return `${value} B`;
+
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let size = value;
+    let unitIndex = -1;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+
+    return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+  }
+
+  async function getImageMetrics(url) {
+    if (!url) {
+      return { fileType: 'N/A', fileSize: 'N/A', mimeType: 'N/A' };
+    }
+
+    if (url.toLowerCase().startsWith('data:')) {
+      return { fileType: 'BASE64', fileSize: 'N/A', mimeType: 'BASE64' };
+    }
+
+    try {
+      const response = await fetch(url, { method: 'HEAD' });
+
+      const contentLength = response.headers.get('content-length');
+      const contentType = response.headers.get('content-type');
+      const mimeType = contentType ? contentType.split(';')[0].trim() : 'N/A';
+      const typeFromMime = mimeType.toLowerCase().startsWith('image/')
+        ? mimeType.split('/')[1]
+        : '';
+      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+      const fileType = normalizedType ? normalizedType.toUpperCase() : 'N/A';
+      const parsedLength = Number(contentLength);
+
+      return {
+        fileType,
+        fileSize: Number.isFinite(parsedLength) && parsedLength >= 0 ? formatBytes(parsedLength) : 'N/A',
+        mimeType: mimeType || 'N/A'
+      };
+    } catch (error) {
+      return { fileType: 'N/A', fileSize: 'N/A', mimeType: 'N/A' };
+    }
+  }
+
   function shouldRenderOverlay(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
@@ -330,6 +379,11 @@
     const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
     const fileName = src.split('/').pop().split('?')[0].split('#')[0];
+    const imageMetrics = await getImageMetrics(src);
+    const ramEstimateBytes = intrinsicWidth * intrinsicHeight * 4;
+    const ramEstimateDisplay = formatBytes(ramEstimateBytes);
+    const loadingStrategy = img.loading || 'auto';
+    const fetchPriority = img.getAttribute('fetchpriority') || 'auto';
 
     const appendDetailsRow = (label, value, withMargin = true) => {
       const row = document.createElement('div');
@@ -355,12 +409,18 @@
     };
 
     appendDetailsRow('File', fileName || 'N/A');
+    appendDetailsRow('Type', imageMetrics.fileType);
+    appendDetailsRow('File size', imageMetrics.fileSize);
+    appendDetailsRow('MIME type', imageMetrics.mimeType);
     appendSpacer();
     appendDetailsRow('Intrinsic', `${intrinsicWidth}×${intrinsicHeight}`);
     appendDetailsRow('Aspect ratio', `${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`);
+    appendDetailsRow('RAM estimate', ramEstimateDisplay);
     appendSpacer();
     appendDetailsRow('Rendered', `${renderedWidth}×${renderedHeight}`);
-    appendDetailsRow('Aspect ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`, false);
+    appendDetailsRow('Aspect ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`);
+    appendSpacer();
+    appendDetailsRow('Performance', `loading=${loadingStrategy}, fetchpriority=${fetchPriority}`, false);
 
     overlayContainer.appendChild(highlightBorder);
     overlayContainer.appendChild(infoBox);
