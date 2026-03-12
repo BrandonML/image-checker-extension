@@ -1,6 +1,7 @@
 // Function to prevent duplicate execution
 (function () {
   const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
+  const FILTERABLE_IMAGE_TYPES = new Set(['jpeg', 'png', 'gif', 'svg', 'webp']);
   const IMAGE_TYPE_ALIASES = {
     jpg: 'jpeg',
     'svg+xml': 'svg',
@@ -17,22 +18,94 @@
     return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
   }
 
-  function getNormalizedImageType(src) {
+  function getTypeFromDataUrl(src) {
+    if (!src) return null;
+
+    const dataUrlMatch = src.match(/^data:image\/([^;,]+)/i);
+    if (!dataUrlMatch) return null;
+
+    return normalizeImageType(dataUrlMatch[1]);
+  }
+
+  function getTypeFromUrlExtension(src) {
     if (!src) return null;
 
     const baseUrl = src.split('?')[0].split('#')[0];
     const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
 
-    if (extensionMatch) {
-      return normalizeImageType(extensionMatch[1]);
-    }
+    if (!extensionMatch) return null;
 
-    const dataUrlMatch = src.match(/^data:image\/([^;,]+)/i);
-    if (dataUrlMatch) {
-      return normalizeImageType(dataUrlMatch[1]);
+    return normalizeImageType(extensionMatch[1]);
+  }
+
+  function getTypeFromQueryParams(src) {
+    if (!src) return null;
+
+    try {
+      const parsedUrl = new URL(src, window.location.href);
+      const typeHints = ['format', 'fm', 'type', 'ext'];
+
+      for (const key of typeHints) {
+        const hintedValue = parsedUrl.searchParams.get(key);
+        const normalizedType = normalizeImageType(hintedValue);
+        if (normalizedType) {
+          return normalizedType;
+        }
+      }
+    } catch (error) {
+      // Ignore invalid URLs and continue with other heuristics.
     }
 
     return null;
+  }
+
+  function getTypeFromPictureSource(img, src) {
+    if (!(img instanceof HTMLImageElement)) return null;
+
+    const picture = img.closest('picture');
+    if (!picture) return null;
+
+    const normalizedSrc = src || getImageSource(img);
+
+    const matchingSource = Array.from(picture.querySelectorAll('source')).find((source) => {
+      const sourceSrcset = source.getAttribute('srcset') || '';
+      if (!sourceSrcset || !normalizedSrc) return false;
+
+      return sourceSrcset
+        .split(',')
+        .map((candidate) => candidate.trim().split(/\s+/, 1)[0])
+        .some((candidateUrl) => {
+          if (!candidateUrl) return false;
+
+          try {
+            const resolvedCandidate = new URL(candidateUrl, document.baseURI).href;
+            const resolvedCurrent = new URL(normalizedSrc, document.baseURI).href;
+            return resolvedCandidate === resolvedCurrent;
+          } catch (error) {
+            return candidateUrl === normalizedSrc;
+          }
+        });
+    });
+
+    const sourceWithType = matchingSource || picture.querySelector('source[type]');
+    if (!sourceWithType) return null;
+
+    const sourceType = sourceWithType.getAttribute('type') || '';
+    if (!sourceType.toLowerCase().startsWith('image/')) return null;
+
+    const mimeSubtype = sourceType.split('/')[1] || sourceType;
+    return normalizeImageType(mimeSubtype);
+  }
+
+  function getNormalizedImageType(src, img = null) {
+    if (!src) return null;
+
+    return (
+      getTypeFromDataUrl(src)
+      || getTypeFromUrlExtension(src)
+      || getTypeFromQueryParams(src)
+      || getTypeFromPictureSource(img, src)
+    );
   }
 
   const processedImageState = new WeakMap();
@@ -98,8 +171,18 @@
       return false;
     }
 
-    const fileType = getNormalizedImageType(src);
-    if (allowedTypes && !allowedTypes.includes(fileType)) {
+    const fileType = getNormalizedImageType(src, img);
+    const hasTypeFilter = Array.isArray(allowedTypes) && allowedTypes.length > 0;
+
+    if (!hasTypeFilter) {
+      return true;
+    }
+
+    const fullTypeSelection =
+      allowedTypes.length === FILTERABLE_IMAGE_TYPES.size
+      && Array.from(FILTERABLE_IMAGE_TYPES).every((type) => allowedTypes.includes(type));
+
+    if (!fullTypeSelection && !allowedTypes.includes(fileType)) {
       return false;
     }
 
@@ -360,7 +443,9 @@
   chrome.storage.local.get('filterSettings', function (result) {
     const settings = result.filterSettings || {};
     const allowedTypes = Array.isArray(settings.allowedTypes)
-      ? settings.allowedTypes.map(normalizeImageType).filter(Boolean)
+      ? settings.allowedTypes
+        .map(normalizeImageType)
+        .filter((type) => FILTERABLE_IMAGE_TYPES.has(type))
       : null;
     const minSize = settings.minSize || 0;
 

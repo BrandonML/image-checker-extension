@@ -5,6 +5,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const minSizeInput = document.getElementById('min-size');
 
     const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
+    const FILTER_IMAGE_TYPES = [
+        { value: 'jpeg', label: 'JPG' },
+        { value: 'png', label: 'PNG' },
+        { value: 'gif', label: 'GIF' },
+        { value: 'svg', label: 'SVG' },
+        { value: 'webp', label: 'WEBP' }
+    ];
+    const FILTER_IMAGE_TYPE_VALUES = new Set(FILTER_IMAGE_TYPES.map(type => type.value));
     const IMAGE_TYPE_ALIASES = {
         jpg: 'jpeg',
         'svg+xml': 'svg',
@@ -166,43 +174,38 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         try {
-            const injectionResults = await executeScriptSafe({
-                target: { tabId: tab.id },
-                function: getImageTypes,
-            });
-
-            const imageTypes = injectionResults[0] ? injectionResults[0].result : [];
             imageTypesContainer.innerHTML = ''; // Clear existing checkboxes
 
-            if (imageTypes && imageTypes.length > 0) {
-                chrome.storage.local.get('filterSettings', function (result) {
-                    const savedTypes = result.filterSettings
-                        ? (result.filterSettings.allowedTypes || []).map(normalizeImageType).filter(Boolean)
-                        : imageTypes;
+            chrome.storage.local.get('filterSettings', function (result) {
+                const savedTypes = result.filterSettings
+                    ? (result.filterSettings.allowedTypes || []).map(normalizeImageType).filter(Boolean)
+                    : FILTER_IMAGE_TYPES.map(type => type.value);
+                const selectedTypes = savedTypes
+                    .filter(type => FILTER_IMAGE_TYPE_VALUES.has(type));
+                const effectiveSelection = selectedTypes.length > 0
+                    ? selectedTypes
+                    : FILTER_IMAGE_TYPES.map(type => type.value);
 
-                    imageTypes.forEach(type => {
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.id = `type-${type}`;
-                        checkbox.value = type;
-                        checkbox.checked = savedTypes.includes(type);
+                FILTER_IMAGE_TYPES.forEach(type => {
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `type-${type.value}`;
+                    checkbox.value = type.value;
+                    checkbox.checked = effectiveSelection.includes(type.value);
 
-                        const label = document.createElement('label');
-                        label.htmlFor = `type-${type}`;
-                        label.textContent = type.toUpperCase();
-                        label.style.marginLeft = '5px';
+                    const label = document.createElement('label');
+                    label.htmlFor = `type-${type.value}`;
+                    label.textContent = type.label;
+                    label.style.marginLeft = '5px';
 
-                        const container = document.createElement('div');
-                        container.appendChild(checkbox);
-                        container.appendChild(label);
-                        imageTypesContainer.appendChild(container);
-                    });
+                    const container = document.createElement('div');
+                    container.appendChild(checkbox);
+                    container.appendChild(label);
+                    imageTypesContainer.appendChild(container);
                 });
-            } else {
-                imageTypesContainer.textContent = 'No image types found on this page.';
-            }
+            });
         } catch (error) {
-            imageTypesContainer.textContent = `Cannot inspect image types on this page: ${error.message}`;
+            imageTypesContainer.textContent = `Cannot load image filters on this page: ${error.message}`;
         }
     }
 
@@ -227,74 +230,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // This function is injected into the page to get all unique image types
-    function getImageTypes() {
-        const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
-        const IMAGE_TYPE_ALIASES = {
-            jpg: 'jpeg',
-            'svg+xml': 'svg',
-            'x-icon': 'ico',
-            'vnd.microsoft.icon': 'ico'
-        };
-
-        function normalizeImageType(type) {
-            if (!type) return null;
-
-            const normalized = type.toLowerCase();
-            const mappedType = IMAGE_TYPE_ALIASES[normalized] || normalized;
-
-            return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
-        }
-
-        function getNormalizedImageType(src) {
-            if (!src) return null;
-
-            const baseUrl = src.split('?')[0].split('#')[0];
-            const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
-
-            if (extensionMatch) {
-                return normalizeImageType(extensionMatch[1]);
-            }
-
-            const dataUrlMatch = src.match(/^data:image\/([^;,]+)/i);
-            if (dataUrlMatch) {
-                return normalizeImageType(dataUrlMatch[1]);
-            }
-
-            return null;
-        }
-
-        function getCandidateSourceFromSrcset(srcset) {
-            if (!srcset) return '';
-
-            const firstCandidate = srcset
-                .split(',')
-                .map((candidate) => candidate.trim())
-                .find(Boolean);
-
-            if (!firstCandidate) return '';
-
-            const [candidateUrl] = firstCandidate.split(/\s+/, 1);
-            return candidateUrl || '';
-        }
-
-        function getImageSource(img) {
-            return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
-        }
-
-        const images = document.querySelectorAll('img');
-        const types = new Set();
-
-        images.forEach(img => {
-            const imageType = getNormalizedImageType(getImageSource(img));
-
-            if (imageType) {
-                types.add(imageType);
-            }
-        });
-
-        return Array.from(types);
-    }
 });
 
 // This function can be injected into the page to clear details
