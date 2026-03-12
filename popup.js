@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
         { value: 'svg', label: 'SVG' },
         { value: 'webp', label: 'WEBP' }
     ];
+    const FILTER_IMAGE_TYPE_VALUES = new Set(FILTER_IMAGE_TYPES.map(type => type.value));
     const IMAGE_TYPE_ALIASES = {
         jpg: 'jpeg',
         'svg+xml': 'svg',
@@ -179,14 +180,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 const savedTypes = result.filterSettings
                     ? (result.filterSettings.allowedTypes || []).map(normalizeImageType).filter(Boolean)
                     : FILTER_IMAGE_TYPES.map(type => type.value);
-                const selectedTypes = savedTypes.length > 0 ? savedTypes : FILTER_IMAGE_TYPES.map(type => type.value);
+                const selectedTypes = savedTypes
+                    .filter(type => FILTER_IMAGE_TYPE_VALUES.has(type));
+                const effectiveSelection = selectedTypes.length > 0
+                    ? selectedTypes
+                    : FILTER_IMAGE_TYPES.map(type => type.value);
 
                 FILTER_IMAGE_TYPES.forEach(type => {
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.id = `type-${type.value}`;
                     checkbox.value = type.value;
-                    checkbox.checked = selectedTypes.includes(type.value);
+                    checkbox.checked = effectiveSelection.includes(type.value);
 
                     const label = document.createElement('label');
                     label.htmlFor = `type-${type.value}`;
