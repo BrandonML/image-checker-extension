@@ -11,6 +11,34 @@
   const ASPECT_RATIO_FILTER_MODES = new Set(['any', 'match', 'exclude']);
   const ASPECT_RATIO_OPTIONS = new Set(['1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16', '21:9', '16:10', '5:4', '32:9']);
   const ASPECT_RATIO_TOLERANCE = 0.015;
+  const OVERLAY_PLACEMENT_THRESHOLD_PX = 150;
+
+  function applyOverlayVerticalPlacement(infoBox, imgRect) {
+    if (!infoBox || !imgRect) return;
+
+    infoBox.style.top = '0';
+    infoBox.style.bottom = 'auto';
+    infoBox.style.marginTop = '0';
+    infoBox.style.marginBottom = '0';
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const spaceBelow = viewportHeight - imgRect.bottom;
+    const spaceAbove = imgRect.top;
+
+    if (spaceBelow < OVERLAY_PLACEMENT_THRESHOLD_PX && spaceAbove >= OVERLAY_PLACEMENT_THRESHOLD_PX) {
+      infoBox.style.bottom = '100%';
+      infoBox.style.top = 'auto';
+      infoBox.style.marginBottom = '5px';
+      return;
+    }
+
+    if (spaceBelow >= OVERLAY_PLACEMENT_THRESHOLD_PX) {
+      infoBox.style.top = '100%';
+      infoBox.style.marginTop = '5px';
+    }
+  }
+
+  window.imageDetailsApplyOverlayVerticalPlacement = applyOverlayVerticalPlacement;
 
   function normalizeImageType(type) {
     if (!type) return null;
@@ -341,18 +369,7 @@
       gap: '8px'
     });
 
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const spaceBelow = viewportHeight - imgRect.bottom;
-    const spaceAbove = imgRect.top;
-
-    if (spaceAbove > 100) {
-      infoBox.style.bottom = '100%';
-      infoBox.style.top = 'auto';
-      infoBox.style.marginBottom = '5px';
-    } else if (spaceBelow > 100) {
-      infoBox.style.top = '100%';
-      infoBox.style.marginTop = '5px';
-    }
+    applyOverlayVerticalPlacement(infoBox, imgRect);
 
     if (infoBox.style.top === '100%' || infoBox.style.bottom === '100%') {
       const connector = document.createElement('div');

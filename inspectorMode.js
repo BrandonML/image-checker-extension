@@ -209,20 +209,9 @@
             minWidth: '200px'
         });
 
-        // Reposition the info box based on available viewport space
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-        const spaceBelow = viewportHeight - imgRect.bottom;
-        const spaceAbove = imgRect.top;
-
-        if (spaceAbove > 120) {
-            // If there's room above the image
-            infoBox.style.bottom = '100%';
-            infoBox.style.top = 'auto';
-            infoBox.style.marginBottom = '5px';
-        } else if (spaceBelow > 120) {
-            // If there's room below the image
-            infoBox.style.top = '100%';
-            infoBox.style.marginTop = '5px';
+        // Reposition the info box based on centralized placement policy when available.
+        if (typeof window.imageDetailsApplyOverlayVerticalPlacement === 'function') {
+            window.imageDetailsApplyOverlayVerticalPlacement(infoBox, imgRect);
         }
 
         // Add a connector line between border and info box if they're separated
