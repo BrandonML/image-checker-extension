@@ -325,18 +325,20 @@
       position: 'absolute',
       top: '0',
       left: '0',
-      padding: '5px',
+      padding: '8px',
       backgroundColor,
       color: 'white',
       fontSize: '12px',
-      fontFamily: 'monospace',
+      fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
       textAlign: 'left',
       whiteSpace: 'normal',
       borderRadius: '3px',
       pointerEvents: 'none',
       zIndex: '10000',
       boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-      minWidth: '200px'
+      minWidth: '260px',
+      display: 'grid',
+      gap: '8px'
     });
 
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
@@ -385,42 +387,69 @@
     const loadingStrategy = img.loading || 'auto';
     const fetchPriority = img.getAttribute('fetchpriority') || 'auto';
 
-    const appendDetailsRow = (label, value, withMargin = true) => {
+    const createRow = (label, value, isPrimary = false) => {
       const row = document.createElement('div');
-      if (withMargin) {
-        row.style.marginBottom = '5px';
-      }
+      Object.assign(row.style, {
+        display: 'grid',
+        gridTemplateColumns: isPrimary ? 'auto 1fr' : '110px 1fr',
+        columnGap: '6px',
+        alignItems: 'baseline'
+      });
 
-      const labelElement = document.createElement('strong');
-      labelElement.textContent = `${label}:`;
+      const labelElement = document.createElement('span');
+      labelElement.textContent = label;
+      labelElement.style.fontWeight = '700';
 
       const valueElement = document.createElement('span');
-      valueElement.textContent = ` ${value}`;
+      valueElement.textContent = value;
+      valueElement.style.wordBreak = 'break-word';
 
       row.appendChild(labelElement);
       row.appendChild(valueElement);
-      infoBox.appendChild(row);
+      return row;
     };
 
-    const appendSpacer = () => {
-      const spacer = document.createElement('div');
-      spacer.style.marginBottom = '5px';
-      infoBox.appendChild(spacer);
+    const createSection = () => {
+      const section = document.createElement('div');
+      Object.assign(section.style, {
+        display: 'grid',
+        gap: '4px'
+      });
+      return section;
     };
 
-    appendDetailsRow('File', fileName || 'N/A');
-    appendDetailsRow('Type', imageMetrics.fileType);
-    appendDetailsRow('File size', imageMetrics.fileSize);
-    appendDetailsRow('MIME type', imageMetrics.mimeType);
-    appendSpacer();
-    appendDetailsRow('Intrinsic', `${intrinsicWidth}×${intrinsicHeight}`);
-    appendDetailsRow('Aspect ratio', `${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`);
-    appendDetailsRow('RAM estimate', ramEstimateDisplay);
-    appendSpacer();
-    appendDetailsRow('Rendered', `${renderedWidth}×${renderedHeight}`);
-    appendDetailsRow('Aspect ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`);
-    appendSpacer();
-    appendDetailsRow('Performance', `loading=${loadingStrategy}, fetchpriority=${fetchPriority}`, false);
+    const fileSection = createSection();
+    fileSection.appendChild(createRow('Filename', fileName || 'N/A', true));
+
+    const performanceSection = createSection();
+    performanceSection.appendChild(
+      createRow(
+        'Performance',
+        `type=${imageMetrics.fileType} • size=${imageMetrics.fileSize} • ram=${ramEstimateDisplay} • loading=${loadingStrategy} • fetchpriority=${fetchPriority}`
+      )
+    );
+
+    const geometrySection = document.createElement('div');
+    Object.assign(geometrySection.style, {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '8px'
+    });
+
+    const intrinsicColumn = createSection();
+    intrinsicColumn.appendChild(createRow('Intrinsic', `${intrinsicWidth}×${intrinsicHeight}`));
+    intrinsicColumn.appendChild(createRow('Ratio', `${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`));
+
+    const renderedColumn = createSection();
+    renderedColumn.appendChild(createRow('Rendered', `${renderedWidth}×${renderedHeight}`));
+    renderedColumn.appendChild(createRow('Ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`));
+
+    geometrySection.appendChild(intrinsicColumn);
+    geometrySection.appendChild(renderedColumn);
+
+    infoBox.appendChild(fileSection);
+    infoBox.appendChild(performanceSection);
+    infoBox.appendChild(geometrySection);
 
     overlayContainer.appendChild(highlightBorder);
     overlayContainer.appendChild(infoBox);
