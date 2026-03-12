@@ -8,6 +8,9 @@
     'x-icon': 'ico',
     'vnd.microsoft.icon': 'ico'
   };
+  const ASPECT_RATIO_FILTER_MODES = new Set(['any', 'match', 'exclude']);
+  const ASPECT_RATIO_OPTIONS = new Set(['1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16', '21:9', '16:10', '5:4', '32:9']);
+  const ASPECT_RATIO_TOLERANCE = 0.015;
 
   function normalizeImageType(type) {
     if (!type) return null;
@@ -144,6 +147,44 @@
     };
   }
 
+
+  function parseAspectRatioValue(value) {
+    if (!ASPECT_RATIO_OPTIONS.has(value)) return null;
+
+    const [widthPart, heightPart] = value.split(':');
+    const width = Number(widthPart);
+    const height = Number(heightPart);
+
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return null;
+    }
+
+    return width / height;
+  }
+
+  function imageMatchesAspectRatioFilter(img, aspectRatioMode, aspectRatioValue) {
+    if (aspectRatioMode === 'any') return true;
+
+    const targetRatio = parseAspectRatioValue(aspectRatioValue);
+    if (!Number.isFinite(targetRatio)) return true;
+
+    const intrinsicWidth = img.naturalWidth;
+    const intrinsicHeight = img.naturalHeight;
+
+    if (!Number.isFinite(intrinsicWidth) || !Number.isFinite(intrinsicHeight) || intrinsicWidth <= 0 || intrinsicHeight <= 0) {
+      return aspectRatioMode === 'exclude';
+    }
+
+    const imageRatio = intrinsicWidth / intrinsicHeight;
+    const ratioDiff = Math.abs(imageRatio - targetRatio);
+    const isMatch = ratioDiff <= ASPECT_RATIO_TOLERANCE;
+
+    if (aspectRatioMode === 'match') return isMatch;
+    if (aspectRatioMode === 'exclude') return !isMatch;
+
+    return true;
+  }
+
   function getCandidateSourceFromSrcset(srcset) {
     if (!srcset) return '';
 
@@ -162,7 +203,7 @@
     return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
   }
 
-  function shouldRenderOverlay(img, allowedTypes, minSize) {
+  function shouldRenderOverlay(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
@@ -174,15 +215,17 @@
     const fileType = getNormalizedImageType(src, img);
     const hasTypeFilter = Array.isArray(allowedTypes) && allowedTypes.length > 0;
 
-    if (!hasTypeFilter) {
-      return true;
+    if (hasTypeFilter) {
+      const fullTypeSelection =
+        allowedTypes.length === FILTERABLE_IMAGE_TYPES.size
+        && Array.from(FILTERABLE_IMAGE_TYPES).every((type) => allowedTypes.includes(type));
+
+      if (!fullTypeSelection && !allowedTypes.includes(fileType)) {
+        return false;
+      }
     }
 
-    const fullTypeSelection =
-      allowedTypes.length === FILTERABLE_IMAGE_TYPES.size
-      && Array.from(FILTERABLE_IMAGE_TYPES).every((type) => allowedTypes.includes(type));
-
-    if (!fullTypeSelection && !allowedTypes.includes(fileType)) {
+    if (!imageMatchesAspectRatioFilter(img, aspectRatioMode, aspectRatioValue)) {
       return false;
     }
 
@@ -332,7 +375,7 @@
     overlaidImages.add(img);
   }
 
-  function processImage(img, allowedTypes, minSize) {
+  function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     if (!(img instanceof HTMLImageElement)) return;
 
     const rect = img.getBoundingClientRect();
@@ -350,7 +393,7 @@
       return;
     }
 
-    if (!shouldRenderOverlay(img, allowedTypes, minSize)) {
+    if (!shouldRenderOverlay(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue)) {
       const existingOverlay = imageOverlayMap.get(img);
       if (existingOverlay) {
         existingOverlay.remove();
@@ -365,11 +408,11 @@
     processedImageState.set(img, currentSignature);
   }
 
-  function refreshImages(images, allowedTypes, minSize) {
-    images.forEach((img) => processImage(img, allowedTypes, minSize));
+  function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+    images.forEach((img) => processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue));
   }
 
-  function scheduleRefresh(allowedTypes, minSize, images = null) {
+  function scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, images = null) {
     if (images === null) {
       refreshAllPending = true;
     } else {
@@ -385,30 +428,30 @@
       if (refreshAllPending) {
         refreshAllPending = false;
         pendingRefreshImages.clear();
-        refreshImages(document.querySelectorAll('img'), allowedTypes, minSize);
+        refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
         return;
       }
 
       if (pendingRefreshImages.size > 0) {
         const imagesToRefresh = Array.from(pendingRefreshImages);
         pendingRefreshImages.clear();
-        refreshImages(imagesToRefresh, allowedTypes, minSize);
+        refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       }
     });
   }
 
-  function processAddedNode(node, allowedTypes, minSize) {
+  function processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     if (!(node instanceof Element)) return;
 
     if (node instanceof HTMLImageElement) {
-      processImage(node, allowedTypes, minSize);
+      processImage(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(node);
       }
     }
 
     node.querySelectorAll('img').forEach((img) => {
-      processImage(img, allowedTypes, minSize);
+      processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(img);
       }
@@ -448,8 +491,14 @@
         .filter((type) => FILTERABLE_IMAGE_TYPES.has(type))
       : null;
     const minSize = settings.minSize || 0;
+    const aspectRatioMode = ASPECT_RATIO_FILTER_MODES.has(settings.aspectRatioMode)
+      ? settings.aspectRatioMode
+      : 'any';
+    const aspectRatioValue = ASPECT_RATIO_OPTIONS.has(settings.aspectRatioValue)
+      ? settings.aspectRatioValue
+      : '1:1';
 
-    scheduleRefresh(allowedTypes, minSize, null);
+    scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, null);
 
     if (window.imageDetailsObserver) {
       window.imageDetailsObserver.disconnect();
@@ -457,11 +506,11 @@
 
     window.imageDetailsObserver = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => processAddedNode(node, allowedTypes, minSize));
+        mutation.addedNodes.forEach((node) => processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue));
         mutation.removedNodes.forEach((node) => cleanupRemovedNode(node));
 
         if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
-          processImage(mutation.target, allowedTypes, minSize);
+          processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
         }
       });
     });
@@ -480,7 +529,7 @@
     }
 
     window.imageDetailsResizeObserver = new ResizeObserver(() => {
-      scheduleRefresh(allowedTypes, minSize, overlaidImages);
+      scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, overlaidImages);
     });
 
     document.querySelectorAll('img').forEach((img) => window.imageDetailsResizeObserver.observe(img));
@@ -489,7 +538,7 @@
       window.removeEventListener('resize', window.imageDetailsResizeHandler);
     }
 
-    window.imageDetailsResizeHandler = () => scheduleRefresh(allowedTypes, minSize, overlaidImages);
+    window.imageDetailsResizeHandler = () => scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, overlaidImages);
     window.addEventListener('resize', window.imageDetailsResizeHandler);
   });
 })();
