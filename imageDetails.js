@@ -249,35 +249,136 @@
     return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
   }
 
+  function getApproximateDataUrlSize(src) {
+    if (!src || !src.toLowerCase().startsWith('data:')) return null;
+
+    const commaIndex = src.indexOf(',');
+    if (commaIndex === -1) return null;
+
+    const metadata = src.slice(0, commaIndex);
+    const payload = src.slice(commaIndex + 1);
+
+    if (metadata.includes(';base64')) {
+      const sanitized = payload.replace(/\s/g, '');
+      const paddingLength = (sanitized.match(/=+$/) || [''])[0].length;
+      return Math.max(0, Math.floor((sanitized.length * 3) / 4) - paddingLength);
+    }
+
+    try {
+      return new TextEncoder().encode(decodeURIComponent(payload)).length;
+    } catch (error) {
+      return new TextEncoder().encode(payload).length;
+    }
+  }
+
+  function getResourceTimingSize(url) {
+    if (!url || typeof performance.getEntriesByName !== 'function') return null;
+
+    const entries = performance.getEntriesByName(url);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (!(entry instanceof PerformanceResourceTiming)) continue;
+
+      const candidates = [entry.decodedBodySize, entry.encodedBodySize, entry.transferSize];
+      const size = candidates.find((candidate) => Number.isFinite(candidate) && candidate > 0);
+      if (Number.isFinite(size) && size > 0) {
+        return size;
+      }
+    }
+
+    return null;
+  }
+
+  async function getImageResponseMetadata(url) {
+    const requestAttempts = [
+      { method: 'HEAD', options: {} },
+      { method: 'GET', options: { headers: { Range: 'bytes=0-0' } } },
+      { method: 'GET', options: {} }
+    ];
+
+    for (const attempt of requestAttempts) {
+      try {
+        const response = await fetch(url, {
+          method: attempt.method,
+          cache: 'force-cache',
+          ...attempt.options
+        });
+
+        if (!response.ok) continue;
+
+        const contentType = response.headers.get('content-type') || '';
+        const contentLength = response.headers.get('content-length');
+        const contentRange = response.headers.get('content-range') || '';
+
+        let byteLength = Number(contentLength);
+        if (!Number.isFinite(byteLength) || byteLength < 0) {
+          const totalMatch = contentRange.match(/\/(\d+)$/);
+          if (totalMatch) {
+            byteLength = Number(totalMatch[1]);
+          }
+        }
+
+        if ((!Number.isFinite(byteLength) || byteLength < 0) && attempt.method === 'GET') {
+          const buffer = await response.clone().arrayBuffer();
+          byteLength = buffer.byteLength;
+        }
+
+        return {
+          mimeType: contentType ? contentType.split(';')[0].trim() : null,
+          byteLength: Number.isFinite(byteLength) && byteLength >= 0 ? byteLength : null
+        };
+      } catch (error) {
+        // Ignore request failures and continue with additional fallbacks.
+      }
+    }
+
+    return { mimeType: null, byteLength: null };
+  }
+
   async function getImageMetrics(url) {
     if (!url) {
       return { fileType: 'N/A', fileSize: 'N/A', mimeType: 'N/A' };
     }
 
     if (url.toLowerCase().startsWith('data:')) {
-      return { fileType: 'BASE64', fileSize: 'N/A', mimeType: 'BASE64' };
+      const dataUrlMatch = url.match(/^data:([^;,]+)/i);
+      const mimeType = dataUrlMatch ? dataUrlMatch[1].toLowerCase() : 'image/unknown';
+      const typeFromMime = mimeType.startsWith('image/') ? mimeType.split('/')[1] : '';
+      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+      const byteLength = getApproximateDataUrlSize(url);
+
+      return {
+        fileType: normalizedType ? normalizedType.toUpperCase() : 'N/A',
+        fileSize: Number.isFinite(byteLength) ? formatBytes(byteLength) : 'N/A',
+        mimeType
+      };
     }
 
     try {
-      const response = await fetch(url, { method: 'HEAD' });
-
-      const contentLength = response.headers.get('content-length');
-      const contentType = response.headers.get('content-type');
-      const mimeType = contentType ? contentType.split(';')[0].trim() : 'N/A';
-      const typeFromMime = mimeType.toLowerCase().startsWith('image/')
-        ? mimeType.split('/')[1]
+      const responseMetadata = await getImageResponseMetadata(url);
+      const mimeType = responseMetadata.mimeType || 'N/A';
+      const typeFromMime = responseMetadata.mimeType && responseMetadata.mimeType.toLowerCase().startsWith('image/')
+        ? responseMetadata.mimeType.split('/')[1]
         : '';
       const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
       const fileType = normalizedType ? normalizedType.toUpperCase() : 'N/A';
-      const parsedLength = Number(contentLength);
+      const resourceTimingSize = getResourceTimingSize(url);
+      const resolvedByteLength = responseMetadata.byteLength ?? resourceTimingSize;
 
       return {
         fileType,
-        fileSize: Number.isFinite(parsedLength) && parsedLength >= 0 ? formatBytes(parsedLength) : 'N/A',
-        mimeType: mimeType || 'N/A'
+        fileSize: Number.isFinite(resolvedByteLength) && resolvedByteLength >= 0 ? formatBytes(resolvedByteLength) : 'N/A',
+        mimeType
       };
     } catch (error) {
-      return { fileType: 'N/A', fileSize: 'N/A', mimeType: 'N/A' };
+      const fallbackType = getNormalizedImageType(url);
+      const fallbackSize = getResourceTimingSize(url);
+
+      return {
+        fileType: fallbackType ? fallbackType.toUpperCase() : 'N/A',
+        fileSize: Number.isFinite(fallbackSize) ? formatBytes(fallbackSize) : 'N/A',
+        mimeType: 'N/A'
+      };
     }
   }
 
@@ -341,6 +442,7 @@
       position: 'absolute',
       top: `${imgRect.top + scrollTop}px`,
       left: `${imgRect.left + scrollLeft}px`,
+      width: `${imgRect.width}px`,
       height: `${imgRect.height}px`,
       pointerEvents: 'none',
       zIndex: '9999'
@@ -375,7 +477,11 @@
       boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
       minWidth: '260px',
       display: 'grid',
-      gap: '8px'
+      gap: '8px',
+      writingMode: 'horizontal-tb',
+      textOrientation: 'mixed',
+      direction: 'ltr',
+      lineHeight: '1.35'
     });
 
     applyOverlayVerticalPlacement(infoBox, imgRect);
@@ -408,8 +514,6 @@
 
     const fileName = src.split('/').pop().split('?')[0].split('#')[0];
     const imageMetrics = includePerformanceSection ? await getImageMetrics(src) : null;
-    const ramEstimateBytes = intrinsicWidth * intrinsicHeight * 4;
-    const ramEstimateDisplay = formatBytes(ramEstimateBytes);
     const loadingStrategy = img.loading || 'auto';
     const fetchPriority = img.getAttribute('fetchpriority') || 'auto';
 
@@ -453,11 +557,11 @@
     const performanceSection = createSection();
     if (includePerformanceSection && imageMetrics) {
       performanceSection.appendChild(
-        createRow(
-          'Performance',
-          `type=${imageMetrics.fileType} • size=${imageMetrics.fileSize} • ram=${ramEstimateDisplay} • loading=${loadingStrategy} • fetchpriority=${fetchPriority}`
-        )
-      );
+          createRow(
+            'Performance',
+            `type=${imageMetrics.fileType} • size=${imageMetrics.fileSize} • loading=${loadingStrategy} • fetchpriority=${fetchPriority}`
+          )
+        );
     }
 
     const geometrySection = document.createElement('div');
