@@ -289,7 +289,40 @@
     return null;
   }
 
+  function requestBackgroundImageMetadata(url) {
+    return new Promise((resolve) => {
+      if (!chrome?.runtime?.sendMessage) {
+        resolve(null);
+        return;
+      }
+
+      chrome.runtime.sendMessage({ type: 'fetchImageMetadata', url }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+
+        if (!response || response.ok !== true) {
+          resolve(null);
+          return;
+        }
+
+        resolve({
+          mimeType: typeof response.mimeType === 'string' ? response.mimeType : null,
+          byteLength: Number.isFinite(response.byteLength) && response.byteLength >= 0
+            ? response.byteLength
+            : null
+        });
+      });
+    });
+  }
+
   async function getImageResponseMetadata(url) {
+    const backgroundMetadata = await requestBackgroundImageMetadata(url);
+    if (backgroundMetadata) {
+      return backgroundMetadata;
+    }
+
     const requestAttempts = [
       { method: 'HEAD', options: {} },
       { method: 'GET', options: { headers: { Range: 'bytes=0-0' } } },
@@ -476,6 +509,8 @@
       zIndex: '10000',
       boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
       minWidth: '260px',
+      width: 'max-content',
+      maxWidth: 'min(420px, calc(100vw - 16px))',
       display: 'grid',
       gap: '8px',
       writingMode: 'horizontal-tb',
@@ -766,6 +801,13 @@
         await processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       }
     }
+  }
+
+  const inspectorApiOnlyMode = window.imageDetailsOverlayApiOnly === true;
+  window.imageDetailsOverlayApiOnly = false;
+
+  if (inspectorApiOnlyMode) {
+    return;
   }
 
   chrome.storage.local.get('filterSettings', function (result) {
