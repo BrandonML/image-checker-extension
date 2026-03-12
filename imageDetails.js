@@ -143,6 +143,7 @@
   const imageOverlayMap = new WeakMap();
   const overlaidImages = new Set();
   let refreshScheduled = false;
+  let refreshInProgress = false;
   let refreshAllPending = false;
   const pendingRefreshImages = new Set();
 
@@ -561,28 +562,47 @@
     if (images === null) {
       refreshAllPending = true;
     } else {
-      images.forEach((img) => pendingRefreshImages.add(img));
+      for (const img of images) {
+        pendingRefreshImages.add(img);
+      }
     }
 
-    if (refreshScheduled) return;
+    if (refreshScheduled || refreshInProgress) return;
 
     refreshScheduled = true;
-    window.requestAnimationFrame(async () => {
+    window.requestAnimationFrame(() => {
       refreshScheduled = false;
-
-      if (refreshAllPending) {
-        refreshAllPending = false;
-        pendingRefreshImages.clear();
-        await refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
-        return;
-      }
-
-      if (pendingRefreshImages.size > 0) {
-        const imagesToRefresh = Array.from(pendingRefreshImages);
-        pendingRefreshImages.clear();
-        await refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
-      }
+      void flushScheduledRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
     });
+  }
+
+  async function flushScheduledRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+    if (refreshInProgress) return;
+
+    refreshInProgress = true;
+
+    try {
+      while (refreshAllPending || pendingRefreshImages.size > 0) {
+        if (refreshAllPending) {
+          await refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+          refreshAllPending = false;
+          pendingRefreshImages.clear();
+          continue;
+        }
+
+        const imagesToRefresh = Array.from(pendingRefreshImages);
+        await refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+        for (const img of imagesToRefresh) {
+          pendingRefreshImages.delete(img);
+        }
+      }
+    } finally {
+      refreshInProgress = false;
+
+      if (refreshAllPending || pendingRefreshImages.size > 0) {
+        scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, []);
+      }
+    }
   }
 
   async function processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
@@ -628,6 +648,22 @@
     node.querySelectorAll('img').forEach((img) => cleanupRemovedImage(img));
   }
 
+  async function handleMutations(mutations, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        await processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      }
+
+      for (const node of mutation.removedNodes) {
+        cleanupRemovedNode(node);
+      }
+
+      if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+        await processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      }
+    }
+  }
+
   chrome.storage.local.get('filterSettings', function (result) {
     const settings = result.filterSettings || {};
     const allowedTypes = Array.isArray(settings.allowedTypes)
@@ -649,20 +685,8 @@
       window.imageDetailsObserver.disconnect();
     }
 
-    window.imageDetailsObserver = new MutationObserver(async (mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          await processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
-        }
-
-        for (const node of mutation.removedNodes) {
-          cleanupRemovedNode(node);
-        }
-
-        if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
-          await processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
-        }
-      }
+    window.imageDetailsObserver = new MutationObserver((mutations) => {
+      void handleMutations(mutations, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
     });
 
     if (document.body) {
@@ -682,7 +706,9 @@
       scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, overlaidImages);
     });
 
-    document.querySelectorAll('img').forEach((img) => window.imageDetailsResizeObserver.observe(img));
+    for (const img of document.querySelectorAll('img')) {
+      window.imageDetailsResizeObserver.observe(img);
+    }
 
     if (window.imageDetailsResizeHandler) {
       window.removeEventListener('resize', window.imageDetailsResizeHandler);

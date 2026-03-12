@@ -120,7 +120,21 @@
             attachInspectorListeners(node);
         }
 
-        node.querySelectorAll('img').forEach(attachInspectorListeners);
+        for (const img of node.querySelectorAll('img')) {
+            attachInspectorListeners(img);
+        }
+    }
+
+    async function handleMutations(mutations) {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                processAddedNode(node);
+            }
+
+            if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+                attachInspectorListeners(mutation.target);
+            }
+        }
     }
 
     window.imageInspectorHoverHandler = function (event) {
@@ -150,20 +164,16 @@
         renderOverlayForInspector(img, event);
     };
 
-    document.querySelectorAll('img').forEach(attachInspectorListeners);
+    for (const img of document.querySelectorAll('img')) {
+        attachInspectorListeners(img);
+    }
 
     if (window.imageInspectorObserver) {
         window.imageInspectorObserver.disconnect();
     }
 
     window.imageInspectorObserver = new MutationObserver((mutations) => {
-        mutations.forEach(mutation => {
-            mutation.addedNodes.forEach(processAddedNode);
-
-            if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
-                attachInspectorListeners(mutation.target);
-            }
-        });
+        void handleMutations(mutations);
     });
 
     if (document.body) {
