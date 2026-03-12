@@ -232,7 +232,7 @@
     return true;
   }
 
-  function createOverlayForImage(img) {
+  async function createOverlayForImage(img) {
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
@@ -375,7 +375,7 @@
     overlaidImages.add(img);
   }
 
-  function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     if (!(img instanceof HTMLImageElement)) return;
 
     const rect = img.getBoundingClientRect();
@@ -404,12 +404,14 @@
       return;
     }
 
-    createOverlayForImage(img);
+    await createOverlayForImage(img);
     processedImageState.set(img, currentSignature);
   }
 
-  function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
-    images.forEach((img) => processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue));
+  async function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+    for (const img of images) {
+      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+    }
   }
 
   function scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, images = null) {
@@ -422,40 +424,40 @@
     if (refreshScheduled) return;
 
     refreshScheduled = true;
-    window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(async () => {
       refreshScheduled = false;
 
       if (refreshAllPending) {
         refreshAllPending = false;
         pendingRefreshImages.clear();
-        refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+        await refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
         return;
       }
 
       if (pendingRefreshImages.size > 0) {
         const imagesToRefresh = Array.from(pendingRefreshImages);
         pendingRefreshImages.clear();
-        refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+        await refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       }
     });
   }
 
-  function processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     if (!(node instanceof Element)) return;
 
     if (node instanceof HTMLImageElement) {
-      processImage(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      await processImage(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(node);
       }
     }
 
-    node.querySelectorAll('img').forEach((img) => {
-      processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+    for (const img of node.querySelectorAll('img')) {
+      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(img);
       }
-    });
+    }
   }
 
   function cleanupRemovedImage(img) {
@@ -504,15 +506,20 @@
       window.imageDetailsObserver.disconnect();
     }
 
-    window.imageDetailsObserver = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue));
-        mutation.removedNodes.forEach((node) => cleanupRemovedNode(node));
+    window.imageDetailsObserver = new MutationObserver(async (mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          await processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+        }
+
+        for (const node of mutation.removedNodes) {
+          cleanupRemovedNode(node);
+        }
 
         if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
-          processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+          await processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
         }
-      });
+      }
     });
 
     if (document.body) {
