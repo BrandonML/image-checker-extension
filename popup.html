@@ -83,6 +83,32 @@
             <label for="min-size" style="font-weight: bold; display: block; margin-bottom: 5px;">Minimum size (width in px):</label>
             <input type="number" id="min-size" name="min-size" min="0" value="0" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
         </div>
+
+        <div class="filter-section" style="margin-top: 15px;">
+            <label for="ar-filter-mode" style="font-weight: bold; display: block; margin-bottom: 5px;">Aspect ratio filter:</label>
+            <select id="ar-filter-mode" name="ar-filter-mode" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="any">Disabled</option>
+                <option value="match">Have selected AR</option>
+                <option value="exclude">Do NOT have selected AR</option>
+            </select>
+        </div>
+
+        <div class="filter-section" style="margin-top: 10px;">
+            <label for="ar-value" style="font-weight: bold; display: block; margin-bottom: 5px;">Aspect ratio:</label>
+            <select id="ar-value" name="ar-value" disabled title="Select a filter mode to enable" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="1:1">1:1</option>
+                <option value="4:3">4:3</option>
+                <option value="3:4">3:4</option>
+                <option value="3:2">3:2</option>
+                <option value="2:3">2:3</option>
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+                <option value="21:9">21:9</option>
+                <option value="16:10">16:10</option>
+                <option value="5:4">5:4</option>
+                <option value="32:9">32:9</option>
+            </select>
+        </div>
     </div>
 
     <script src="popup.js"></script>

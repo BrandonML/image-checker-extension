@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const filterControls = document.getElementById('filter-controls');
     const imageTypesContainer = document.getElementById('image-types');
     const minSizeInput = document.getElementById('min-size');
+    const arFilterModeSelect = document.getElementById('ar-filter-mode');
+    const arValueSelect = document.getElementById('ar-value');
 
     const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
     const FILTER_IMAGE_TYPES = [
@@ -20,6 +22,22 @@ document.addEventListener('DOMContentLoaded', function () {
         'vnd.microsoft.icon': 'ico'
     };
 
+    const ASPECT_RATIO_OPTIONS = [
+        '1:1',
+        '4:3',
+        '3:4',
+        '3:2',
+        '2:3',
+        '16:9',
+        '9:16',
+        '21:9',
+        '16:10',
+        '5:4',
+        '32:9'
+    ];
+    const ASPECT_RATIO_FILTER_MODES = new Set(['any', 'match', 'exclude']);
+
+
     function normalizeImageType(type) {
         if (!type) return null;
 
@@ -32,6 +50,13 @@ document.addEventListener('DOMContentLoaded', function () {
     function setStatusMessage(message, isError = false) {
         status.textContent = message;
         status.style.color = isError ? '#b91c1c' : '';
+    }
+
+
+    function updateAspectRatioSelectorState(mode) {
+        const isEnabled = mode !== 'any';
+        arValueSelect.disabled = !isEnabled;
+        arValueSelect.title = isEnabled ? '' : 'Select a filter mode to enable';
     }
 
     async function getActiveTab() {
@@ -78,7 +103,19 @@ document.addEventListener('DOMContentLoaded', function () {
             // Restore filter settings
             if (result.filterSettings) {
                 minSizeInput.value = result.filterSettings.minSize || 0;
+
+                const aspectRatioMode = ASPECT_RATIO_FILTER_MODES.has(result.filterSettings.aspectRatioMode)
+                    ? result.filterSettings.aspectRatioMode
+                    : 'any';
+                const aspectRatioValue = ASPECT_RATIO_OPTIONS.includes(result.filterSettings.aspectRatioValue)
+                    ? result.filterSettings.aspectRatioValue
+                    : '1:1';
+
+                arFilterModeSelect.value = aspectRatioMode;
+                arValueSelect.value = aspectRatioValue;
             }
+
+            updateAspectRatioSelectorState(arFilterModeSelect.value || 'any');
         });
     });
 
@@ -116,6 +153,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // Event listener for filter changes
     minSizeInput.addEventListener('change', saveFilterSettings);
     imageTypesContainer.addEventListener('change', saveFilterSettings);
+    arFilterModeSelect.addEventListener('change', () => {
+        updateAspectRatioSelectorState(arFilterModeSelect.value);
+        saveFilterSettings();
+    });
+    arValueSelect.addEventListener('change', saveFilterSettings);
 
 
     function updateStatus(mode) {
@@ -214,8 +256,14 @@ document.addEventListener('DOMContentLoaded', function () {
             .map(cb => normalizeImageType(cb.value))
             .filter(Boolean);
         const minSize = parseInt(minSizeInput.value, 10) || 0;
+        const aspectRatioMode = ASPECT_RATIO_FILTER_MODES.has(arFilterModeSelect.value)
+            ? arFilterModeSelect.value
+            : 'any';
+        const aspectRatioValue = ASPECT_RATIO_OPTIONS.includes(arValueSelect.value)
+            ? arValueSelect.value
+            : '1:1';
 
-        const filterSettings = { allowedTypes, minSize };
+        const filterSettings = { allowedTypes, minSize, aspectRatioMode, aspectRatioValue };
         chrome.storage.local.set({ filterSettings }, async function () {
             // Re-apply filters only when show-all mode is active for this tab.
             const tab = await getActiveTab();
