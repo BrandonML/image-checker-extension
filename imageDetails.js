@@ -461,7 +461,6 @@
     const overlayContainer = document.createElement('div');
     overlayContainer.className = 'image-details-overlay';
 
-    const highlightBorder = document.createElement('div');
     const infoBox = document.createElement('div');
 
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
@@ -481,18 +480,6 @@
       zIndex: '9999'
     });
 
-    Object.assign(highlightBorder.style, {
-      position: 'absolute',
-      top: '0',
-      left: '0',
-      width: '100%',
-      height: '100%',
-      boxSizing: 'border-box',
-      border: `3px solid ${borderColor}`,
-      pointerEvents: 'none',
-      zIndex: '9999'
-    });
-
     Object.assign(infoBox.style, {
       position: 'absolute',
       top: '0',
@@ -508,9 +495,8 @@
       pointerEvents: 'none',
       zIndex: '10000',
       boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-      minWidth: '260px',
-      width: 'max-content',
-      maxWidth: 'min(420px, calc(100vw - 16px))',
+      width: '100%',
+      maxWidth: '100%',
       display: 'grid',
       gap: '8px',
       writingMode: 'horizontal-tb',
@@ -556,8 +542,8 @@
       const row = document.createElement('div');
       Object.assign(row.style, {
         display: 'grid',
-        gridTemplateColumns: isPrimary ? 'auto 1fr' : '110px 1fr',
-        columnGap: '6px',
+        gridTemplateColumns: isPrimary ? 'max-content minmax(0, 1fr)' : 'max-content minmax(0, 1fr)',
+        columnGap: '4px',
         alignItems: 'baseline'
       });
 
@@ -578,7 +564,7 @@
       const section = document.createElement('div');
       Object.assign(section.style, {
         display: 'grid',
-        gap: '4px'
+        gap: '3px'
       });
       return section;
     };
@@ -602,8 +588,8 @@
     const geometrySection = document.createElement('div');
     Object.assign(geometrySection.style, {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '8px'
+      gridTemplateColumns: renderedWidth >= 360 ? '1fr 1fr' : '1fr',
+      gap: '6px'
     });
 
     const intrinsicColumn = createSection();
@@ -623,7 +609,6 @@
     }
     infoBox.appendChild(geometrySection);
 
-    overlayContainer.appendChild(highlightBorder);
     overlayContainer.appendChild(infoBox);
 
     if (clearAllOverlays) {
