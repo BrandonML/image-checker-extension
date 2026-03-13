@@ -480,11 +480,17 @@
     });
   }
 
+  function getAllImageRects(excludeImg = null) {
+    return Array.from(document.querySelectorAll('img'))
+      .filter((img) => img !== excludeImg && img.offsetParent !== null)
+      .map((img) => getPageRectFromClientRect(img.getBoundingClientRect()));
+  }
+
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
   }
 
-  function resolveInfoBoxPlacement(imgPageRect, infoWidth, infoHeight, occupiedRects) {
+  function resolveInfoBoxPlacement(imgPageRect, infoWidth, infoHeight, occupiedRects, otherImageRects, layoutPreference = null) {
     const margin = 8;
     const documentWidth = Math.max(
       document.documentElement.scrollWidth,
@@ -497,8 +503,11 @@
       window.innerHeight || document.documentElement.clientHeight
     );
 
+    const isLargeImage = imgPageRect.width >= 500 && imgPageRect.height >= 500;
+    const isSmallImage = imgPageRect.width < 250 || imgPageRect.height < 250;
+
     const isLandscape = imgPageRect.width > imgPageRect.height;
-    const candidateAnchors = isLandscape
+    let candidateAnchors = isLandscape
       ? [
         { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
         { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin },
@@ -511,6 +520,22 @@
         { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
         { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin }
       ];
+
+    if (layoutPreference) {
+      candidateAnchors.sort((a, b) => {
+        if (a.name === layoutPreference) return -1;
+        if (b.name === layoutPreference) return 1;
+        return 0;
+      });
+    }
+
+    if (isLargeImage) {
+      candidateAnchors.push({
+        name: 'inside-top-left',
+        left: imgPageRect.left + margin,
+        top: imgPageRect.top + margin
+      });
+    }
 
     const pageMinLeft = margin;
     const pageMaxLeft = Math.max(pageMinLeft, documentWidth - infoWidth - margin);
@@ -529,10 +554,19 @@
         height: infoHeight
       };
 
-      const imageOverlap = getIntersectionArea(rect, imgPageRect);
+      let imageOverlap = getIntersectionArea(rect, imgPageRect);
+      if (isSmallImage && imageOverlap > 0) {
+        imageOverlap *= 1000;
+      }
+
       let overlayOverlap = 0;
       for (const occupied of occupiedRects) {
         overlayOverlap += getIntersectionArea(rect, occupied);
+      }
+
+      let otherImageOverlap = 0;
+      for (const other of otherImageRects) {
+        otherImageOverlap += getIntersectionArea(rect, other);
       }
 
       const clampPenalty = Math.abs(left - candidate.left) + Math.abs(top - candidate.top);
@@ -542,6 +576,7 @@
         placement: candidate.name,
         imageOverlap,
         overlayOverlap,
+        otherImageOverlap,
         clampPenalty,
         preferenceOrder: index
       };
@@ -550,6 +585,7 @@
     scored.sort((a, b) => {
       if (a.imageOverlap !== b.imageOverlap) return a.imageOverlap - b.imageOverlap;
       if (a.overlayOverlap !== b.overlayOverlap) return a.overlayOverlap - b.overlayOverlap;
+      if (a.otherImageOverlap !== b.otherImageOverlap) return a.otherImageOverlap - b.otherImageOverlap;
       if (a.clampPenalty !== b.clampPenalty) return a.clampPenalty - b.clampPenalty;
       return a.preferenceOrder - b.preferenceOrder;
     });
@@ -557,54 +593,20 @@
     return scored[0];
   }
 
-  function createAssociationBorder(imgPageRect, placement, color) {
-    const borderThickness = 3;
+  function createAssociationBorder(imgPageRect, color) {
     const border = document.createElement('div');
     border.className = 'image-details-association-border';
 
     Object.assign(border.style, {
       position: 'absolute',
-      pointerEvents: 'none',
-      zIndex: '9999',
-      backgroundColor: color,
-      boxShadow: '0 0 2px rgba(0,0,0,0.2)'
-    });
-
-    if (placement === 'left') {
-      Object.assign(border.style, {
-        left: `${imgPageRect.left}px`,
-        top: `${imgPageRect.top}px`,
-        width: `${borderThickness}px`,
-        height: `${imgPageRect.height}px`
-      });
-      return border;
-    }
-
-    if (placement === 'right') {
-      Object.assign(border.style, {
-        left: `${imgPageRect.right - borderThickness}px`,
-        top: `${imgPageRect.top}px`,
-        width: `${borderThickness}px`,
-        height: `${imgPageRect.height}px`
-      });
-      return border;
-    }
-
-    if (placement === 'top') {
-      Object.assign(border.style, {
-        left: `${imgPageRect.left}px`,
-        top: `${imgPageRect.top}px`,
-        width: `${imgPageRect.width}px`,
-        height: `${borderThickness}px`
-      });
-      return border;
-    }
-
-    Object.assign(border.style, {
       left: `${imgPageRect.left}px`,
-      top: `${imgPageRect.bottom - borderThickness}px`,
+      top: `${imgPageRect.top}px`,
       width: `${imgPageRect.width}px`,
-      height: `${borderThickness}px`
+      height: `${imgPageRect.height}px`,
+      boxSizing: 'border-box',
+      border: `3px solid ${color}`,
+      pointerEvents: 'none',
+      zIndex: '9999'
     });
 
     return border;
@@ -788,13 +790,24 @@
     infoBox.appendChild(geometrySection);
 
     const occupiedRects = getOccupiedOverlayRects();
+    const otherImageRects = getAllImageRects(img);
+
+    let layoutPreference = null;
+    const parent = img.parentElement;
+    if (parent) {
+      const computed = window.getComputedStyle(parent);
+      if (computed.display === 'grid' || computed.display === 'flex') {
+        const isHorizontal = computed.flexDirection === 'row' || computed.display === 'grid';
+        layoutPreference = isHorizontal ? 'bottom' : 'right';
+      }
+    }
 
     document.body.appendChild(overlayContainer);
     overlayContainer.appendChild(infoBox);
 
     const infoRect = infoBox.getBoundingClientRect();
     const placementResult = allowExternalPlacement
-      ? resolveInfoBoxPlacement(imgPageRect, infoRect.width, infoRect.height, occupiedRects)
+      ? resolveInfoBoxPlacement(imgPageRect, infoRect.width, infoRect.height, occupiedRects, otherImageRects, layoutPreference)
       : {
         placement: 'top',
         rect: {
@@ -810,7 +823,7 @@
     infoBox.style.left = `${targetRect.left}px`;
     infoBox.style.top = `${targetRect.top}px`;
 
-    const associationBorder = createAssociationBorder(imgPageRect, placementResult.placement, backgroundColor);
+    const associationBorder = createAssociationBorder(imgPageRect, backgroundColor);
     overlayContainer.appendChild(associationBorder);
 
     if (trackOverlay) {
@@ -865,7 +878,15 @@
   }
 
   async function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
-    for (const img of images) {
+    const sortedImages = Array.from(images).sort((a, b) => {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      const areaA = rectA.width * rectA.height;
+      const areaB = rectB.width * rectB.height;
+      return areaB - areaA;
+    });
+
+    for (const img of sortedImages) {
       await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
     }
   }
