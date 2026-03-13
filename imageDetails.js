@@ -11,6 +11,34 @@
   const ASPECT_RATIO_FILTER_MODES = new Set(['any', 'match', 'exclude']);
   const ASPECT_RATIO_OPTIONS = new Set(['1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16', '21:9', '16:10', '5:4', '32:9']);
   const ASPECT_RATIO_TOLERANCE = 0.015;
+  const OVERLAY_PLACEMENT_THRESHOLD_PX = 150;
+
+  function applyOverlayVerticalPlacement(infoBox, imgRect) {
+    if (!infoBox || !imgRect) return;
+
+    infoBox.style.top = '0';
+    infoBox.style.bottom = 'auto';
+    infoBox.style.marginTop = '0';
+    infoBox.style.marginBottom = '0';
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const spaceBelow = viewportHeight - imgRect.bottom;
+    const spaceAbove = imgRect.top;
+
+    if (spaceBelow < OVERLAY_PLACEMENT_THRESHOLD_PX && spaceAbove >= OVERLAY_PLACEMENT_THRESHOLD_PX) {
+      infoBox.style.bottom = '100%';
+      infoBox.style.top = 'auto';
+      infoBox.style.marginBottom = '5px';
+      return;
+    }
+
+    if (spaceBelow >= OVERLAY_PLACEMENT_THRESHOLD_PX) {
+      infoBox.style.top = '100%';
+      infoBox.style.marginTop = '5px';
+    }
+  }
+
+  window.imageDetailsApplyOverlayVerticalPlacement = applyOverlayVerticalPlacement;
 
   function normalizeImageType(type) {
     if (!type) return null;
@@ -115,6 +143,7 @@
   const imageOverlayMap = new WeakMap();
   const overlaidImages = new Set();
   let refreshScheduled = false;
+  let refreshInProgress = false;
   let refreshAllPending = false;
   const pendingRefreshImages = new Set();
 
@@ -203,6 +232,189 @@
     return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
   }
 
+  function formatBytes(value) {
+    if (!Number.isFinite(value) || value < 0) return 'N/A';
+
+    if (value < 1024) return `${value} B`;
+
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let size = value;
+    let unitIndex = -1;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+
+    return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+  }
+
+  function getApproximateDataUrlSize(src) {
+    if (!src || !src.toLowerCase().startsWith('data:')) return null;
+
+    const commaIndex = src.indexOf(',');
+    if (commaIndex === -1) return null;
+
+    const metadata = src.slice(0, commaIndex);
+    const payload = src.slice(commaIndex + 1);
+
+    if (metadata.includes(';base64')) {
+      const sanitized = payload.replace(/\s/g, '');
+      const paddingLength = (sanitized.match(/=+$/) || [''])[0].length;
+      return Math.max(0, Math.floor((sanitized.length * 3) / 4) - paddingLength);
+    }
+
+    try {
+      return new TextEncoder().encode(decodeURIComponent(payload)).length;
+    } catch (error) {
+      return new TextEncoder().encode(payload).length;
+    }
+  }
+
+  function getResourceTimingSize(url) {
+    if (!url || typeof performance.getEntriesByName !== 'function') return null;
+
+    const entries = performance.getEntriesByName(url);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (!(entry instanceof PerformanceResourceTiming)) continue;
+
+      const candidates = [entry.decodedBodySize, entry.encodedBodySize, entry.transferSize];
+      const size = candidates.find((candidate) => Number.isFinite(candidate) && candidate > 0);
+      if (Number.isFinite(size) && size > 0) {
+        return size;
+      }
+    }
+
+    return null;
+  }
+
+  function requestBackgroundImageMetadata(url) {
+    return new Promise((resolve) => {
+      if (!chrome?.runtime?.sendMessage) {
+        resolve(null);
+        return;
+      }
+
+      chrome.runtime.sendMessage({ type: 'fetchImageMetadata', url }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+
+        if (!response || response.ok !== true) {
+          resolve(null);
+          return;
+        }
+
+        resolve({
+          mimeType: typeof response.mimeType === 'string' ? response.mimeType : null,
+          byteLength: Number.isFinite(response.byteLength) && response.byteLength >= 0
+            ? response.byteLength
+            : null
+        });
+      });
+    });
+  }
+
+  async function getImageResponseMetadata(url) {
+    const backgroundMetadata = await requestBackgroundImageMetadata(url);
+    if (backgroundMetadata) {
+      return backgroundMetadata;
+    }
+
+    const requestAttempts = [
+      { method: 'HEAD', options: {} },
+      { method: 'GET', options: { headers: { Range: 'bytes=0-0' } } },
+      { method: 'GET', options: {} }
+    ];
+
+    for (const attempt of requestAttempts) {
+      try {
+        const response = await fetch(url, {
+          method: attempt.method,
+          cache: 'force-cache',
+          ...attempt.options
+        });
+
+        if (!response.ok) continue;
+
+        const contentType = response.headers.get('content-type') || '';
+        const contentLength = response.headers.get('content-length');
+        const contentRange = response.headers.get('content-range') || '';
+
+        let byteLength = Number(contentLength);
+        if (!Number.isFinite(byteLength) || byteLength < 0) {
+          const totalMatch = contentRange.match(/\/(\d+)$/);
+          if (totalMatch) {
+            byteLength = Number(totalMatch[1]);
+          }
+        }
+
+        if ((!Number.isFinite(byteLength) || byteLength < 0) && attempt.method === 'GET') {
+          const buffer = await response.clone().arrayBuffer();
+          byteLength = buffer.byteLength;
+        }
+
+        return {
+          mimeType: contentType ? contentType.split(';')[0].trim() : null,
+          byteLength: Number.isFinite(byteLength) && byteLength >= 0 ? byteLength : null
+        };
+      } catch (error) {
+        // Ignore request failures and continue with additional fallbacks.
+      }
+    }
+
+    return { mimeType: null, byteLength: null };
+  }
+
+  async function getImageMetrics(url) {
+    if (!url) {
+      return { fileType: 'N/A', fileSize: 'N/A', mimeType: 'N/A' };
+    }
+
+    if (url.toLowerCase().startsWith('data:')) {
+      const dataUrlMatch = url.match(/^data:([^;,]+)/i);
+      const mimeType = dataUrlMatch ? dataUrlMatch[1].toLowerCase() : 'image/unknown';
+      const typeFromMime = mimeType.startsWith('image/') ? mimeType.split('/')[1] : '';
+      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+      const byteLength = getApproximateDataUrlSize(url);
+
+      return {
+        fileType: normalizedType ? normalizedType.toUpperCase() : 'N/A',
+        fileSize: Number.isFinite(byteLength) ? formatBytes(byteLength) : 'N/A',
+        mimeType
+      };
+    }
+
+    try {
+      const responseMetadata = await getImageResponseMetadata(url);
+      const mimeType = responseMetadata.mimeType || 'N/A';
+      const typeFromMime = responseMetadata.mimeType && responseMetadata.mimeType.toLowerCase().startsWith('image/')
+        ? responseMetadata.mimeType.split('/')[1]
+        : '';
+      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+      const fileType = normalizedType ? normalizedType.toUpperCase() : 'N/A';
+      const resourceTimingSize = getResourceTimingSize(url);
+      const resolvedByteLength = responseMetadata.byteLength ?? resourceTimingSize;
+
+      return {
+        fileType,
+        fileSize: Number.isFinite(resolvedByteLength) && resolvedByteLength >= 0 ? formatBytes(resolvedByteLength) : 'N/A',
+        mimeType
+      };
+    } catch (error) {
+      const fallbackType = getNormalizedImageType(url);
+      const fallbackSize = getResourceTimingSize(url);
+
+      return {
+        fileType: fallbackType ? fallbackType.toUpperCase() : 'N/A',
+        fileSize: Number.isFinite(fallbackSize) ? formatBytes(fallbackSize) : 'N/A',
+        mimeType: 'N/A'
+      };
+    }
+  }
+
   function shouldRenderOverlay(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
@@ -232,96 +444,246 @@
     return true;
   }
 
-  function createOverlayForImage(img) {
+  function getPageRectFromClientRect(rect) {
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+    return {
+      top: rect.top + scrollTop,
+      left: rect.left + scrollLeft,
+      width: rect.width,
+      height: rect.height,
+      right: rect.left + scrollLeft + rect.width,
+      bottom: rect.top + scrollTop + rect.height
+    };
+  }
+
+  function rectsIntersect(rectA, rectB) {
+    return !(
+      rectA.right <= rectB.left
+      || rectA.left >= rectB.right
+      || rectA.bottom <= rectB.top
+      || rectA.top >= rectB.bottom
+    );
+  }
+
+  function getIntersectionArea(rectA, rectB) {
+    const overlapWidth = Math.max(0, Math.min(rectA.right, rectB.right) - Math.max(rectA.left, rectB.left));
+    const overlapHeight = Math.max(0, Math.min(rectA.bottom, rectB.bottom) - Math.max(rectA.top, rectB.top));
+    return overlapWidth * overlapHeight;
+  }
+
+  function getOccupiedOverlayRects() {
+    return Array.from(document.querySelectorAll('.image-details-infobox')).map((box) => {
+      const rect = box.getBoundingClientRect();
+      return getPageRectFromClientRect(rect);
+    });
+  }
+
+  function getAllImageRects(excludeImg = null) {
+    return Array.from(document.querySelectorAll('img'))
+      .filter((img) => img !== excludeImg && img.offsetParent !== null)
+      .map((img) => getPageRectFromClientRect(img.getBoundingClientRect()));
+  }
+
+  function precalculateImageRects() {
+    return Array.from(document.querySelectorAll('img'))
+      .filter((img) => img.offsetParent !== null)
+      .map((img) => ({
+        img,
+        rect: getPageRectFromClientRect(img.getBoundingClientRect())
+      }));
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function resolveInfoBoxPlacement(imgPageRect, infoWidth, infoHeight, occupiedRects, otherImageRects, layoutPreference = null) {
+    const margin = 8;
+    const documentWidth = Math.max(
+      document.documentElement.scrollWidth,
+      document.body ? document.body.scrollWidth : 0,
+      window.innerWidth || document.documentElement.clientWidth
+    );
+    const documentHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body ? document.body.scrollHeight : 0,
+      window.innerHeight || document.documentElement.clientHeight
+    );
+
+    const isLargeImage = imgPageRect.width >= 500 && imgPageRect.height >= 500;
+    const isSmallImage = imgPageRect.width < 250 || imgPageRect.height < 250;
+
+    const isLandscape = imgPageRect.width > imgPageRect.height;
+    let candidateAnchors = isLandscape
+      ? [
+        { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
+        { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin },
+        { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
+        { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top }
+      ]
+      : [
+        { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
+        { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top },
+        { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
+        { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin }
+      ];
+
+    if (layoutPreference) {
+      candidateAnchors.sort((a, b) => {
+        if (a.name === layoutPreference) return -1;
+        if (b.name === layoutPreference) return 1;
+        return 0;
+      });
+    }
+
+    const pageMinLeft = margin;
+    const pageMaxLeft = Math.max(pageMinLeft, documentWidth - infoWidth - margin);
+    const pageMinTop = margin;
+    const pageMaxTop = Math.max(pageMinTop, documentHeight - infoHeight - margin);
+
+    const scored = candidateAnchors.map((candidate, index) => {
+      const left = clamp(candidate.left, pageMinLeft, pageMaxLeft);
+      const top = clamp(candidate.top, pageMinTop, pageMaxTop);
+      const rect = {
+        left,
+        top,
+        right: left + infoWidth,
+        bottom: top + infoHeight,
+        width: infoWidth,
+        height: infoHeight
+      };
+
+      let imageOverlap = getIntersectionArea(rect, imgPageRect);
+      if (isSmallImage && imageOverlap > 0) {
+        imageOverlap *= 1000;
+      }
+
+      let overlayOverlap = 0;
+      for (const occupied of occupiedRects) {
+        overlayOverlap += getIntersectionArea(rect, occupied);
+      }
+
+      let otherImageOverlap = 0;
+      for (const other of otherImageRects) {
+        otherImageOverlap += getIntersectionArea(rect, other);
+      }
+
+      const clampPenalty = Math.abs(left - candidate.left) + Math.abs(top - candidate.top);
+
+      return {
+        rect,
+        placement: candidate.name,
+        imageOverlap,
+        overlayOverlap,
+        otherImageOverlap,
+        clampPenalty,
+        preferenceOrder: index
+      };
+    });
+
+    scored.sort((a, b) => {
+      if (a.imageOverlap !== b.imageOverlap) return a.imageOverlap - b.imageOverlap;
+      if (a.overlayOverlap !== b.overlayOverlap) return a.overlayOverlap - b.overlayOverlap;
+      if (a.otherImageOverlap !== b.otherImageOverlap) return a.otherImageOverlap - b.otherImageOverlap;
+      if (a.clampPenalty !== b.clampPenalty) return a.clampPenalty - b.clampPenalty;
+      return a.preferenceOrder - b.preferenceOrder;
+    });
+
+    return scored[0];
+  }
+
+  function createAssociationBorder(imgPageRect, color) {
+    const border = document.createElement('div');
+    border.className = 'image-details-association-border';
+
+    Object.assign(border.style, {
+      position: 'absolute',
+      left: `${imgPageRect.left}px`,
+      top: `${imgPageRect.top}px`,
+      width: `${imgPageRect.width}px`,
+      height: `${imgPageRect.height}px`,
+      boxSizing: 'border-box',
+      border: `3px solid ${color}`,
+      pointerEvents: 'none',
+      zIndex: '9999'
+    });
+
+    return border;
+  }
+
+  async function createOverlayForImage(img, options = {}) {
+    if (!(img instanceof HTMLImageElement)) return null;
+
+    const {
+      clearAllOverlays = false,
+      trackOverlay = true,
+      includePerformanceSection = true,
+      includeSourceMetadata = true,
+      allowExternalPlacement = true,
+      precalculatedImageRects = null
+    } = options;
+
+    if (clearAllOverlays) {
+      const existingOverlays = document.querySelectorAll('.image-details-overlay');
+      existingOverlays.forEach((overlay) => overlay.remove());
+      imageOverlayMap.delete(img);
+      overlaidImages.clear();
+    }
+
+    const existingOverlay = imageOverlayMap.get(img);
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
+    const imgPageRect = getPageRectFromClientRect(imgRect);
     const renderedWidth = Math.round(imgRect.width);
     const renderedHeight = Math.round(imgRect.height);
 
     const overlayContainer = document.createElement('div');
     overlayContainer.className = 'image-details-overlay';
 
-    const highlightBorder = document.createElement('div');
     const infoBox = document.createElement('div');
-
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    infoBox.className = 'image-details-infobox';
 
     const hue = Math.floor(Math.random() * 360);
-    const borderColor = `hsla(${hue}, 100%, 50%, 0.8)`;
     const backgroundColor = `hsla(${hue}, 100%, 25%, 0.9)`;
 
     Object.assign(overlayContainer.style, {
       position: 'absolute',
-      top: `${imgRect.top + scrollTop}px`,
-      left: `${imgRect.left + scrollLeft}px`,
-      height: `${imgRect.height}px`,
-      pointerEvents: 'none',
-      zIndex: '9999'
-    });
-
-    Object.assign(highlightBorder.style, {
-      position: 'absolute',
       top: '0',
       left: '0',
-      width: '100%',
-      height: '100%',
-      boxSizing: 'border-box',
-      border: `3px solid ${borderColor}`,
+      width: '0',
+      height: '0',
       pointerEvents: 'none',
       zIndex: '9999'
     });
 
     Object.assign(infoBox.style, {
       position: 'absolute',
-      top: '0',
-      left: '0',
-      padding: '5px',
+      padding: '8px',
       backgroundColor,
       color: 'white',
       fontSize: '12px',
-      fontFamily: 'monospace',
+      fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
       textAlign: 'left',
       whiteSpace: 'normal',
       borderRadius: '3px',
       pointerEvents: 'none',
       zIndex: '10000',
       boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-      minWidth: '200px'
+      minWidth: '220px',
+      maxWidth: 'min(420px, calc(100vw - 16px))',
+      display: 'grid',
+      gap: '8px',
+      writingMode: 'horizontal-tb',
+      textOrientation: 'mixed',
+      direction: 'ltr',
+      lineHeight: '1.35'
     });
-
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const spaceBelow = viewportHeight - imgRect.bottom;
-    const spaceAbove = imgRect.top;
-
-    if (spaceAbove > 100) {
-      infoBox.style.bottom = '100%';
-      infoBox.style.top = 'auto';
-      infoBox.style.marginBottom = '5px';
-    } else if (spaceBelow > 100) {
-      infoBox.style.top = '100%';
-      infoBox.style.marginTop = '5px';
-    }
-
-    if (infoBox.style.top === '100%' || infoBox.style.bottom === '100%') {
-      const connector = document.createElement('div');
-      Object.assign(connector.style, {
-        position: 'absolute',
-        backgroundColor: borderColor,
-        width: '2px',
-        height: '5px',
-        left: '10px',
-        zIndex: '9999'
-      });
-
-      if (infoBox.style.top === '100%') {
-        connector.style.top = '100%';
-      } else {
-        connector.style.bottom = '100%';
-      }
-
-      overlayContainer.appendChild(connector);
-    }
 
     const intrinsicWidth = img.naturalWidth;
     const intrinsicHeight = img.naturalHeight;
@@ -330,52 +692,173 @@
     const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
 
     const fileName = src.split('/').pop().split('?')[0].split('#')[0];
+    const imageMetrics = includePerformanceSection ? await getImageMetrics(src) : null;
+    const loadingStrategy = img.loading || 'auto';
+    const fetchPriority = img.getAttribute('fetchpriority') || 'auto';
 
-    const appendDetailsRow = (label, value, withMargin = true) => {
+    const createRow = (label, value, isPrimary = false) => {
       const row = document.createElement('div');
-      if (withMargin) {
-        row.style.marginBottom = '5px';
-      }
+      Object.assign(row.style, {
+        display: 'grid',
+        gridTemplateColumns: isPrimary ? 'max-content minmax(0, 1fr)' : 'max-content minmax(0, 1fr)',
+        columnGap: '4px',
+        alignItems: 'baseline'
+      });
 
-      const labelElement = document.createElement('strong');
-      labelElement.textContent = `${label}:`;
+      const labelElement = document.createElement('span');
+      labelElement.textContent = label;
+      labelElement.style.fontWeight = '700';
 
       const valueElement = document.createElement('span');
-      valueElement.textContent = ` ${value}`;
+      valueElement.textContent = value;
+      valueElement.style.wordBreak = 'break-word';
 
       row.appendChild(labelElement);
       row.appendChild(valueElement);
-      infoBox.appendChild(row);
+      return row;
     };
 
-    const appendSpacer = () => {
-      const spacer = document.createElement('div');
-      spacer.style.marginBottom = '5px';
-      infoBox.appendChild(spacer);
+    const createSection = () => {
+      const section = document.createElement('div');
+      Object.assign(section.style, {
+        display: 'grid',
+        gap: '3px'
+      });
+      return section;
     };
 
-    appendDetailsRow('File', fileName || 'N/A');
-    appendSpacer();
-    appendDetailsRow('Intrinsic', `${intrinsicWidth}×${intrinsicHeight}`);
-    appendDetailsRow('Aspect ratio', `${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`);
-    appendSpacer();
-    appendDetailsRow('Rendered', `${renderedWidth}×${renderedHeight}`);
-    appendDetailsRow('Aspect ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`, false);
+    const fileSection = createSection();
+    fileSection.appendChild(createRow('Filename', fileName || 'N/A', true));
 
-    overlayContainer.appendChild(highlightBorder);
-    overlayContainer.appendChild(infoBox);
+    const createPerformanceGrid = (labelA, labelB, valueA, valueB) => {
+      const grid = document.createElement('div');
+      Object.assign(grid.style, {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        columnGap: '8px',
+        rowGap: '3px'
+      });
 
-    const existingOverlay = imageOverlayMap.get(img);
-    if (existingOverlay) {
-      existingOverlay.remove();
+      const makeCell = (text, isHeader = false) => {
+        const cell = document.createElement('div');
+        cell.textContent = text;
+        if (isHeader) {
+          cell.style.fontWeight = '700';
+          cell.style.fontSize = '10px';
+          cell.style.textTransform = 'uppercase';
+          cell.style.color = 'rgba(255, 255, 255, 0.7)';
+          cell.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
+          cell.style.marginBottom = '2px';
+        }
+        return cell;
+      };
+
+      grid.appendChild(makeCell(labelA, true));
+      grid.appendChild(makeCell(labelB, true));
+      grid.appendChild(makeCell(valueA));
+      grid.appendChild(makeCell(valueB));
+      return grid;
+    };
+
+    const performanceSection = createSection();
+    if (includePerformanceSection && imageMetrics) {
+      performanceSection.appendChild(createPerformanceGrid('Type', 'Size', imageMetrics.fileType, imageMetrics.fileSize));
+      performanceSection.appendChild(createPerformanceGrid('Loading', 'FetchPriority', loadingStrategy, fetchPriority));
+    }
+
+    const geometrySection = document.createElement('div');
+    Object.assign(geometrySection.style, {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      columnGap: '8px',
+      rowGap: '3px'
+    });
+
+    const createGeometryCell = (text, isHeader = false) => {
+      const cell = document.createElement('div');
+      cell.textContent = text;
+      if (isHeader) {
+        cell.style.fontWeight = '700';
+        cell.style.fontSize = '10px';
+        cell.style.textTransform = 'uppercase';
+        cell.style.color = 'rgba(255, 255, 255, 0.7)';
+        cell.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
+        cell.style.marginBottom = '2px';
+      }
+      return cell;
+    };
+
+    geometrySection.appendChild(createGeometryCell('Intrinsic', true));
+    geometrySection.appendChild(createGeometryCell('Rendered', true));
+    geometrySection.appendChild(createGeometryCell(`${intrinsicWidth}×${intrinsicHeight}`));
+    geometrySection.appendChild(createGeometryCell(`${renderedWidth}×${renderedHeight}`));
+    geometrySection.appendChild(createGeometryCell(`${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`));
+    geometrySection.appendChild(createGeometryCell(`${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`));
+
+    infoBox.appendChild(fileSection);
+    if (includePerformanceSection && performanceSection.childNodes.length > 0) {
+      infoBox.appendChild(performanceSection);
+    }
+    infoBox.appendChild(geometrySection);
+
+    const occupiedRects = getOccupiedOverlayRects();
+    const otherImageRects = precalculatedImageRects
+      ? precalculatedImageRects.filter((item) => item.img !== img).map((item) => item.rect)
+      : getAllImageRects(img);
+
+    let layoutPreference = null;
+    const parent = img.parentElement;
+    if (parent) {
+      const computed = window.getComputedStyle(parent);
+      if (computed.display === 'grid' || computed.display === 'flex') {
+        const isHorizontal = computed.flexDirection === 'row' || computed.display === 'grid';
+        layoutPreference = isHorizontal ? 'bottom' : 'right';
+      }
     }
 
     document.body.appendChild(overlayContainer);
-    imageOverlayMap.set(img, overlayContainer);
-    overlaidImages.add(img);
+    overlayContainer.appendChild(infoBox);
+
+    const infoRect = infoBox.getBoundingClientRect();
+    const placementResult = allowExternalPlacement
+      ? resolveInfoBoxPlacement(imgPageRect, infoRect.width, infoRect.height, occupiedRects, otherImageRects, layoutPreference)
+      : {
+        placement: 'top',
+        rect: {
+          left: imgPageRect.left,
+          top: imgPageRect.top,
+          right: imgPageRect.left + infoRect.width,
+          bottom: imgPageRect.top + infoRect.height
+        }
+      };
+
+    const targetRect = placementResult.rect;
+
+    infoBox.style.left = `${targetRect.left}px`;
+    infoBox.style.top = `${targetRect.top}px`;
+
+    const associationBorder = createAssociationBorder(imgPageRect, backgroundColor);
+    overlayContainer.appendChild(associationBorder);
+
+    if (trackOverlay) {
+      imageOverlayMap.set(img, overlayContainer);
+      overlaidImages.add(img);
+    }
+
+    return overlayContainer;
   }
 
-  function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  function clearAllOverlays() {
+    document.querySelectorAll('.image-details-overlay').forEach((overlay) => overlay.remove());
+    overlaidImages.clear();
+  }
+
+  window.imageDetailsAPI = {
+    createOverlayForImage,
+    clearAllOverlays
+  };
+
+  async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, precalculatedImageRects = null) {
     if (!(img instanceof HTMLImageElement)) return;
 
     const rect = img.getBoundingClientRect();
@@ -404,58 +887,96 @@
       return;
     }
 
-    createOverlayForImage(img);
+    await createOverlayForImage(img, { precalculatedImageRects });
     processedImageState.set(img, currentSignature);
   }
 
-  function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
-    images.forEach((img) => processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue));
+  async function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+    const allImageRects = precalculateImageRects();
+
+    const sortedImages = Array.from(images)
+      .map((img) => {
+        const found = allImageRects.find((item) => item.img === img);
+        return {
+          img,
+          rect: found ? found.rect : img.getBoundingClientRect()
+        };
+      })
+      .sort((a, b) => {
+        const areaA = a.rect.width * a.rect.height;
+        const areaB = b.rect.width * b.rect.height;
+        return areaB - areaA;
+      })
+      .map((item) => item.img);
+
+    for (const img of sortedImages) {
+      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, allImageRects);
+    }
   }
 
   function scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, images = null) {
     if (images === null) {
       refreshAllPending = true;
     } else {
-      images.forEach((img) => pendingRefreshImages.add(img));
+      for (const img of images) {
+        pendingRefreshImages.add(img);
+      }
     }
 
-    if (refreshScheduled) return;
+    if (refreshScheduled || refreshInProgress) return;
 
     refreshScheduled = true;
     window.requestAnimationFrame(() => {
       refreshScheduled = false;
-
-      if (refreshAllPending) {
-        refreshAllPending = false;
-        pendingRefreshImages.clear();
-        refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
-        return;
-      }
-
-      if (pendingRefreshImages.size > 0) {
-        const imagesToRefresh = Array.from(pendingRefreshImages);
-        pendingRefreshImages.clear();
-        refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
-      }
+      void flushScheduledRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
     });
   }
 
-  function processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function flushScheduledRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+    if (refreshInProgress) return;
+
+    refreshInProgress = true;
+
+    try {
+      while (refreshAllPending || pendingRefreshImages.size > 0) {
+        if (refreshAllPending) {
+          await refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+          refreshAllPending = false;
+          pendingRefreshImages.clear();
+          continue;
+        }
+
+        const imagesToRefresh = Array.from(pendingRefreshImages);
+        await refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+        for (const img of imagesToRefresh) {
+          pendingRefreshImages.delete(img);
+        }
+      }
+    } finally {
+      refreshInProgress = false;
+
+      if (refreshAllPending || pendingRefreshImages.size > 0) {
+        scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, []);
+      }
+    }
+  }
+
+  async function processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
     if (!(node instanceof Element)) return;
 
     if (node instanceof HTMLImageElement) {
-      processImage(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      await processImage(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(node);
       }
     }
 
-    node.querySelectorAll('img').forEach((img) => {
-      processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+    for (const img of node.querySelectorAll('img')) {
+      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(img);
       }
-    });
+    }
   }
 
   function cleanupRemovedImage(img) {
@@ -483,6 +1004,29 @@
     node.querySelectorAll('img').forEach((img) => cleanupRemovedImage(img));
   }
 
+  async function handleMutations(mutations, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        await processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      }
+
+      for (const node of mutation.removedNodes) {
+        cleanupRemovedNode(node);
+      }
+
+      if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+        await processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      }
+    }
+  }
+
+  const inspectorApiOnlyMode = window.imageDetailsOverlayApiOnly === true;
+  window.imageDetailsOverlayApiOnly = false;
+
+  if (inspectorApiOnlyMode) {
+    return;
+  }
+
   chrome.storage.local.get('filterSettings', function (result) {
     const settings = result.filterSettings || {};
     const allowedTypes = Array.isArray(settings.allowedTypes)
@@ -505,14 +1049,7 @@
     }
 
     window.imageDetailsObserver = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue));
-        mutation.removedNodes.forEach((node) => cleanupRemovedNode(node));
-
-        if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
-          processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
-        }
-      });
+      void handleMutations(mutations, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
     });
 
     if (document.body) {
@@ -532,7 +1069,9 @@
       scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, overlaidImages);
     });
 
-    document.querySelectorAll('img').forEach((img) => window.imageDetailsResizeObserver.observe(img));
+    for (const img of document.querySelectorAll('img')) {
+      window.imageDetailsResizeObserver.observe(img);
+    }
 
     if (window.imageDetailsResizeHandler) {
       window.removeEventListener('resize', window.imageDetailsResizeHandler);
