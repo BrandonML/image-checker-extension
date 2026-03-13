@@ -444,6 +444,105 @@
     return true;
   }
 
+  function getPageRectFromClientRect(rect) {
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+    return {
+      top: rect.top + scrollTop,
+      left: rect.left + scrollLeft,
+      width: rect.width,
+      height: rect.height,
+      right: rect.left + scrollLeft + rect.width,
+      bottom: rect.top + scrollTop + rect.height
+    };
+  }
+
+  function rectsIntersect(rectA, rectB) {
+    return !(
+      rectA.right <= rectB.left
+      || rectA.left >= rectB.right
+      || rectA.bottom <= rectB.top
+      || rectA.top >= rectB.bottom
+    );
+  }
+
+  function getIntersectionArea(rectA, rectB) {
+    const overlapWidth = Math.max(0, Math.min(rectA.right, rectB.right) - Math.max(rectA.left, rectB.left));
+    const overlapHeight = Math.max(0, Math.min(rectA.bottom, rectB.bottom) - Math.max(rectA.top, rectB.top));
+    return overlapWidth * overlapHeight;
+  }
+
+  function getOccupiedOverlayRects() {
+    return Array.from(document.querySelectorAll('.image-details-infobox')).map((box) => {
+      const rect = box.getBoundingClientRect();
+      return getPageRectFromClientRect(rect);
+    });
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function resolveInfoBoxPlacement(imgPageRect, infoWidth, infoHeight, occupiedRects) {
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    const margin = 8;
+
+    const candidateAnchors = [
+      { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
+      { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top },
+      { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
+      { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin }
+    ];
+
+    const viewportMinLeft = scrollLeft + margin;
+    const viewportMaxLeft = scrollLeft + viewportWidth - infoWidth - margin;
+    const viewportMinTop = scrollTop + margin;
+    const viewportMaxTop = scrollTop + viewportHeight - infoHeight - margin;
+
+    const scored = candidateAnchors.map((candidate, index) => {
+      const left = clamp(candidate.left, viewportMinLeft, Math.max(viewportMinLeft, viewportMaxLeft));
+      const top = clamp(candidate.top, viewportMinTop, Math.max(viewportMinTop, viewportMaxTop));
+      const rect = {
+        left,
+        top,
+        right: left + infoWidth,
+        bottom: top + infoHeight,
+        width: infoWidth,
+        height: infoHeight
+      };
+
+      const imageOverlap = getIntersectionArea(rect, imgPageRect);
+      let overlayOverlap = 0;
+      for (const occupied of occupiedRects) {
+        overlayOverlap += getIntersectionArea(rect, occupied);
+      }
+
+      const clampPenalty = Math.abs(left - candidate.left) + Math.abs(top - candidate.top);
+
+      return {
+        candidate,
+        rect,
+        imageOverlap,
+        overlayOverlap,
+        clampPenalty,
+        preferenceOrder: index
+      };
+    });
+
+    scored.sort((a, b) => {
+      if (a.imageOverlap !== b.imageOverlap) return a.imageOverlap - b.imageOverlap;
+      if (a.overlayOverlap !== b.overlayOverlap) return a.overlayOverlap - b.overlayOverlap;
+      if (a.clampPenalty !== b.clampPenalty) return a.clampPenalty - b.clampPenalty;
+      return a.preferenceOrder - b.preferenceOrder;
+    });
+
+    return scored[0].rect;
+  }
+
   async function createOverlayForImage(img, options = {}) {
     if (!(img instanceof HTMLImageElement)) return null;
 
@@ -454,8 +553,22 @@
       includeSourceMetadata = true,
       allowExternalPlacement = true
     } = options;
+
+    if (clearAllOverlays) {
+      const existingOverlays = document.querySelectorAll('.image-details-overlay');
+      existingOverlays.forEach((overlay) => overlay.remove());
+      imageOverlayMap.delete(img);
+      overlaidImages.clear();
+    }
+
+    const existingOverlay = imageOverlayMap.get(img);
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
+    const imgPageRect = getPageRectFromClientRect(imgRect);
     const renderedWidth = Math.round(imgRect.width);
     const renderedHeight = Math.round(imgRect.height);
 
@@ -463,28 +576,23 @@
     overlayContainer.className = 'image-details-overlay';
 
     const infoBox = document.createElement('div');
-
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    infoBox.className = 'image-details-infobox';
 
     const hue = Math.floor(Math.random() * 360);
-    const borderColor = `hsla(${hue}, 100%, 50%, 0.8)`;
     const backgroundColor = `hsla(${hue}, 100%, 25%, 0.9)`;
 
     Object.assign(overlayContainer.style, {
       position: 'absolute',
-      top: `${imgRect.top + scrollTop}px`,
-      left: `${imgRect.left + scrollLeft}px`,
-      width: `${imgRect.width}px`,
-      height: `${imgRect.height}px`,
+      top: '0',
+      left: '0',
+      width: '0',
+      height: '0',
       pointerEvents: 'none',
       zIndex: '9999'
     });
 
     Object.assign(infoBox.style, {
       position: 'absolute',
-      top: '0',
-      left: '0',
       padding: '8px',
       backgroundColor,
       color: 'white',
@@ -496,8 +604,8 @@
       pointerEvents: 'none',
       zIndex: '10000',
       boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-      width: '100%',
-      maxWidth: '100%',
+      minWidth: '220px',
+      maxWidth: 'min(420px, calc(100vw - 16px))',
       display: 'grid',
       gap: '8px',
       writingMode: 'horizontal-tb',
@@ -505,30 +613,6 @@
       direction: 'ltr',
       lineHeight: '1.35'
     });
-
-    if (allowExternalPlacement) {
-      applyOverlayVerticalPlacement(infoBox, imgRect);
-    }
-
-    if (allowExternalPlacement && (infoBox.style.top === '100%' || infoBox.style.bottom === '100%')) {
-      const connector = document.createElement('div');
-      Object.assign(connector.style, {
-        position: 'absolute',
-        backgroundColor: borderColor,
-        width: '2px',
-        height: '5px',
-        left: '10px',
-        zIndex: '9999'
-      });
-
-      if (infoBox.style.top === '100%') {
-        connector.style.top = '100%';
-      } else {
-        connector.style.bottom = '100%';
-      }
-
-      overlayContainer.appendChild(connector);
-    }
 
     const intrinsicWidth = img.naturalWidth;
     const intrinsicHeight = img.naturalHeight;
@@ -575,14 +659,35 @@
     const fileSection = createSection();
     fileSection.appendChild(createRow('Filename', fileName || 'N/A', true));
 
+    const createPerformanceGrid = (labelA, labelB, valueA, valueB) => {
+      const grid = document.createElement('div');
+      Object.assign(grid.style, {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        columnGap: '8px',
+        rowGap: '3px'
+      });
+
+      const makeCell = (text, isHeader = false) => {
+        const cell = document.createElement('div');
+        cell.textContent = text;
+        if (isHeader) {
+          cell.style.fontWeight = '700';
+        }
+        return cell;
+      };
+
+      grid.appendChild(makeCell(labelA, true));
+      grid.appendChild(makeCell(labelB, true));
+      grid.appendChild(makeCell(valueA));
+      grid.appendChild(makeCell(valueB));
+      return grid;
+    };
+
     const performanceSection = createSection();
     if (includePerformanceSection && imageMetrics) {
-      performanceSection.appendChild(
-          createRow(
-            'Performance',
-            `type=${imageMetrics.fileType} • size=${imageMetrics.fileSize} • loading=${loadingStrategy} • fetchpriority=${fetchPriority}`
-          )
-        );
+      performanceSection.appendChild(createPerformanceGrid('Type', 'Size', imageMetrics.fileType, imageMetrics.fileSize));
+      performanceSection.appendChild(createPerformanceGrid('Loading', 'FetchPriority', loadingStrategy, fetchPriority));
     }
 
     const geometrySection = document.createElement('div');
@@ -615,21 +720,23 @@
     }
     infoBox.appendChild(geometrySection);
 
-    overlayContainer.appendChild(infoBox);
-
-    if (clearAllOverlays) {
-      const existingOverlays = document.querySelectorAll('.image-details-overlay');
-      existingOverlays.forEach((overlay) => overlay.remove());
-      imageOverlayMap.delete(img);
-      overlaidImages.clear();
-    }
-
-    const existingOverlay = imageOverlayMap.get(img);
-    if (existingOverlay) {
-      existingOverlay.remove();
-    }
+    const occupiedRects = getOccupiedOverlayRects();
 
     document.body.appendChild(overlayContainer);
+    overlayContainer.appendChild(infoBox);
+
+    const infoRect = infoBox.getBoundingClientRect();
+    const targetRect = allowExternalPlacement
+      ? resolveInfoBoxPlacement(imgPageRect, infoRect.width, infoRect.height, occupiedRects)
+      : {
+        left: imgPageRect.left,
+        top: imgPageRect.top,
+        right: imgPageRect.left + infoRect.width,
+        bottom: imgPageRect.top + infoRect.height
+      };
+
+    infoBox.style.left = `${targetRect.left}px`;
+    infoBox.style.top = `${targetRect.top}px`;
 
     if (trackOverlay) {
       imageOverlayMap.set(img, overlayContainer);
