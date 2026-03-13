@@ -485,11 +485,17 @@
   }
 
   function resolveInfoBoxPlacement(imgPageRect, infoWidth, infoHeight, occupiedRects) {
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
     const margin = 8;
+    const documentWidth = Math.max(
+      document.documentElement.scrollWidth,
+      document.body ? document.body.scrollWidth : 0,
+      window.innerWidth || document.documentElement.clientWidth
+    );
+    const documentHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body ? document.body.scrollHeight : 0,
+      window.innerHeight || document.documentElement.clientHeight
+    );
 
     const candidateAnchors = [
       { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
@@ -498,14 +504,14 @@
       { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin }
     ];
 
-    const viewportMinLeft = scrollLeft + margin;
-    const viewportMaxLeft = scrollLeft + viewportWidth - infoWidth - margin;
-    const viewportMinTop = scrollTop + margin;
-    const viewportMaxTop = scrollTop + viewportHeight - infoHeight - margin;
+    const pageMinLeft = margin;
+    const pageMaxLeft = Math.max(pageMinLeft, documentWidth - infoWidth - margin);
+    const pageMinTop = margin;
+    const pageMaxTop = Math.max(pageMinTop, documentHeight - infoHeight - margin);
 
     const scored = candidateAnchors.map((candidate, index) => {
-      const left = clamp(candidate.left, viewportMinLeft, Math.max(viewportMinLeft, viewportMaxLeft));
-      const top = clamp(candidate.top, viewportMinTop, Math.max(viewportMinTop, viewportMaxTop));
+      const left = clamp(candidate.left, pageMinLeft, pageMaxLeft);
+      const top = clamp(candidate.top, pageMinTop, pageMaxTop);
       const rect = {
         left,
         top,
@@ -524,7 +530,6 @@
       const clampPenalty = Math.abs(left - candidate.left) + Math.abs(top - candidate.top);
 
       return {
-        candidate,
         rect,
         imageOverlap,
         overlayOverlap,
