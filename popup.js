@@ -191,6 +191,18 @@ document.addEventListener('DOMContentLoaded', function () {
             if (mode === 'inspector') {
                 await executeScriptSafe({
                     target: { tabId: activeTabId },
+                    function: () => {
+                        window.imageDetailsOverlayApiOnly = true;
+                    }
+                });
+
+                await executeScriptSafe({
+                    target: { tabId: activeTabId },
+                    files: ['imageDetails.js'],
+                });
+
+                await executeScriptSafe({
+                    target: { tabId: activeTabId },
                     files: ['inspectorMode.js'],
                 });
             } else if (mode === 'all') {
