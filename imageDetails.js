@@ -486,6 +486,15 @@
       .map((img) => getPageRectFromClientRect(img.getBoundingClientRect()));
   }
 
+  function precalculateImageRects() {
+    return Array.from(document.querySelectorAll('img'))
+      .filter((img) => img.offsetParent !== null)
+      .map((img) => ({
+        img,
+        rect: getPageRectFromClientRect(img.getBoundingClientRect())
+      }));
+  }
+
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
   }
@@ -526,14 +535,6 @@
         if (a.name === layoutPreference) return -1;
         if (b.name === layoutPreference) return 1;
         return 0;
-      });
-    }
-
-    if (isLargeImage) {
-      candidateAnchors.push({
-        name: 'inside-top-left',
-        left: imgPageRect.left + margin,
-        top: imgPageRect.top + margin
       });
     }
 
@@ -620,7 +621,8 @@
       trackOverlay = true,
       includePerformanceSection = true,
       includeSourceMetadata = true,
-      allowExternalPlacement = true
+      allowExternalPlacement = true,
+      precalculatedImageRects = null
     } = options;
 
     if (clearAllOverlays) {
@@ -742,6 +744,11 @@
         cell.textContent = text;
         if (isHeader) {
           cell.style.fontWeight = '700';
+          cell.style.fontSize = '10px';
+          cell.style.textTransform = 'uppercase';
+          cell.style.color = 'rgba(255, 255, 255, 0.7)';
+          cell.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
+          cell.style.marginBottom = '2px';
         }
         return cell;
       };
@@ -772,6 +779,11 @@
       cell.textContent = text;
       if (isHeader) {
         cell.style.fontWeight = '700';
+        cell.style.fontSize = '10px';
+        cell.style.textTransform = 'uppercase';
+        cell.style.color = 'rgba(255, 255, 255, 0.7)';
+        cell.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
+        cell.style.marginBottom = '2px';
       }
       return cell;
     };
@@ -790,7 +802,9 @@
     infoBox.appendChild(geometrySection);
 
     const occupiedRects = getOccupiedOverlayRects();
-    const otherImageRects = getAllImageRects(img);
+    const otherImageRects = precalculatedImageRects
+      ? precalculatedImageRects.filter((item) => item.img !== img).map((item) => item.rect)
+      : getAllImageRects(img);
 
     let layoutPreference = null;
     const parent = img.parentElement;
@@ -844,7 +858,7 @@
     clearAllOverlays
   };
 
-  async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, precalculatedImageRects = null) {
     if (!(img instanceof HTMLImageElement)) return;
 
     const rect = img.getBoundingClientRect();
@@ -873,21 +887,30 @@
       return;
     }
 
-    await createOverlayForImage(img);
+    await createOverlayForImage(img, { precalculatedImageRects });
     processedImageState.set(img, currentSignature);
   }
 
   async function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
-    const sortedImages = Array.from(images).sort((a, b) => {
-      const rectA = a.getBoundingClientRect();
-      const rectB = b.getBoundingClientRect();
-      const areaA = rectA.width * rectA.height;
-      const areaB = rectB.width * rectB.height;
-      return areaB - areaA;
-    });
+    const allImageRects = precalculateImageRects();
+
+    const sortedImages = Array.from(images)
+      .map((img) => {
+        const found = allImageRects.find((item) => item.img === img);
+        return {
+          img,
+          rect: found ? found.rect : img.getBoundingClientRect()
+        };
+      })
+      .sort((a, b) => {
+        const areaA = a.rect.width * a.rect.height;
+        const areaB = b.rect.width * b.rect.height;
+        return areaB - areaA;
+      })
+      .map((item) => item.img);
 
     for (const img of sortedImages) {
-      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, allImageRects);
     }
   }
 
