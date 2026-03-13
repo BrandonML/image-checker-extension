@@ -37,15 +37,18 @@ A [Chrome extension](https://chromewebstore.google.com/detail/image-details-insp
 ## Features
 
 - **Three Operation Modes**: Choose between Inspector mode, Show All mode, or turn off completely
-- **Detailed Image Information**: View both intrinsic (original) and rendered dimensions
+- **Comprehensive Image Information**: View intrinsic and rendered dimensions, file types, and sizes.
 - **Aspect Ratio Calculations**: See aspect ratios in both ratio format (16:9) and decimal format (1.78)
-- **Smart Positioning**: Overlays automatically position themselves to avoid blocking content
-- **Advanced Filtering**: Filter images by file type, minimum width, and intrinsic aspect ratio criteria
-- **Color-coded Overlays**: Each image gets a unique color for easy identification
-- **Dynamic Page Support**: Works with images that are added, removed, or updated after initial page load (including lazy-loaded content)
-- **Responsive Show All Overlays**: Show All mode refreshes overlays when image sizes/layouts change so rendered dimensions stay accurate
-- **Smart Source Detection**: Uses rendered image sources (`currentSrc`) with `src`/`srcset` fallbacks for better format detection and labels
-- **Tab-aware Mode State**: Mode selection is scoped to the current tab and resets on navigation for predictable behavior
+- **Advanced Positioning Engine**: A sophisticated penalty-based system that ensures overlays never block their source images and minimizes overlap in dense layouts.
+- **Layout Awareness**: Automatically detects `flex` and `grid` layouts to prefer side gutters for overlay placement.
+- **Visual Association**: Color-matched borders link overlays to their source images, making it easy to identify which info belongs where.
+- **Performance Insights**: View image loading strategies (`lazy` vs `eager`) and `fetchpriority` hints.
+- **Advanced Filtering**: Filter images by file type, minimum width, and intrinsic aspect ratio criteria.
+- **Color-coded Overlays**: Each image and its association border get a unique color for easy identification.
+- **Dynamic Page Support**: Works with images that are added, removed, or updated after initial page load (including lazy-loaded content).
+- **Responsive Show All Overlays**: Show All mode refreshes overlays when image sizes/layouts change so rendered dimensions stay accurate.
+- **Smart Source Detection**: Uses rendered image sources (`currentSrc`) with `src`/`srcset` fallbacks and background metadata fetching for better format and size detection.
+- **Tab-aware Mode State**: Mode selection is scoped to the current tab and resets on navigation for predictable behavior.
 
 ## Installation
 
@@ -87,19 +90,21 @@ A [Chrome extension](https://chromewebstore.google.com/detail/image-details-insp
 Each overlay shows:
 
 ```
-File: image-name.jpg
+FILENAME: image-name.jpg
 
-Intrinsic: 1920×1080
-Aspect ratio: 16:9 (1.78)
+TYPE      SIZE      LOADING   FETCHPRIORITY
+WebP      145 KB    lazy      auto
 
-Rendered: 960×540  
-Aspect ratio: 16:9 (1.78)
+INTRINSIC           RENDERED
+1920×1080           960×540
+16:9 (1.78)         16:9 (1.78)
 ```
 
-- **File**: The image filename
-- **Intrinsic**: Original image dimensions (natural size)
-- **Rendered**: How the image appears on the page (may be scaled)
-- **Aspect ratio**: Both simplified ratio (16:9) and decimal (1.78) formats
+- **FILENAME**: The image filename extracted from the source URL.
+- **TYPE & SIZE**: Detected file format and transfer size (using Resource Timing API and background fetching).
+- **LOADING & FETCHPRIORITY**: Browser-level optimization hints used for the image.
+- **INTRINSIC**: Original image dimensions (natural size) and aspect ratio.
+- **RENDERED**: How the image appears on the page (scaled size) and its current aspect ratio.
 
 ### Advanced Filtering (Show All Mode)
 
@@ -167,9 +172,9 @@ When using "Show All" mode, you can filter which images are displayed:
 5. On restricted Chrome pages (e.g., `chrome://` URLs), script injection is blocked and the popup will show a status error
 
 ### Overlays in Wrong Position
-- This can happen on pages with complex layouts
-- Try scrolling or zooming to refresh positions
-- Switch modes off and on to reset
+- v1.4 introduces a new positioning engine that significantly improves placement in complex layouts.
+- If overlays still overlap, try scrolling or zooming to trigger a refresh.
+- On extremely dense pages, the engine prioritizes not covering the source image, which may result in overlays being pushed further away.
 
 ### Extension Not Working
 1. Try disabling and re-enabling the extension
