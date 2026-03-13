@@ -96,7 +96,7 @@
         await imageDetailsAPI.createOverlayForImage(img, {
             clearAllOverlays: true,
             trackOverlay: false,
-            includePerformanceSection: false,
+            includePerformanceSection: true,
             includeSourceMetadata: false,
             allowExternalPlacement: true
         });

@@ -452,7 +452,7 @@
       trackOverlay = true,
       includePerformanceSection = true,
       includeSourceMetadata = true,
-      allowExternalPlacement = false
+      allowExternalPlacement = true
     } = options;
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
@@ -503,9 +503,7 @@
       writingMode: 'horizontal-tb',
       textOrientation: 'mixed',
       direction: 'ltr',
-      lineHeight: '1.35',
-      maxHeight: '100%',
-      overflow: 'hidden'
+      lineHeight: '1.35'
     });
 
     if (allowExternalPlacement) {
@@ -576,9 +574,6 @@
 
     const fileSection = createSection();
     fileSection.appendChild(createRow('Filename', fileName || 'N/A', true));
-    if (includeSourceMetadata) {
-      fileSection.appendChild(createRow('Source', src || 'N/A'));
-    }
 
     const performanceSection = createSection();
     if (includePerformanceSection && imageMetrics) {
@@ -593,20 +588,26 @@
     const geometrySection = document.createElement('div');
     Object.assign(geometrySection.style, {
       display: 'grid',
-      gridTemplateColumns: renderedWidth >= 360 ? '1fr 1fr' : '1fr',
-      gap: '6px'
+      gridTemplateColumns: '1fr 1fr',
+      columnGap: '8px',
+      rowGap: '3px'
     });
 
-    const intrinsicColumn = createSection();
-    intrinsicColumn.appendChild(createRow('Intrinsic', `${intrinsicWidth}×${intrinsicHeight}`));
-    intrinsicColumn.appendChild(createRow('Ratio', `${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`));
+    const createGeometryCell = (text, isHeader = false) => {
+      const cell = document.createElement('div');
+      cell.textContent = text;
+      if (isHeader) {
+        cell.style.fontWeight = '700';
+      }
+      return cell;
+    };
 
-    const renderedColumn = createSection();
-    renderedColumn.appendChild(createRow('Rendered', `${renderedWidth}×${renderedHeight}`));
-    renderedColumn.appendChild(createRow('Ratio', `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`));
-
-    geometrySection.appendChild(intrinsicColumn);
-    geometrySection.appendChild(renderedColumn);
+    geometrySection.appendChild(createGeometryCell('Intrinsic', true));
+    geometrySection.appendChild(createGeometryCell('Rendered', true));
+    geometrySection.appendChild(createGeometryCell(`${intrinsicWidth}×${intrinsicHeight}`));
+    geometrySection.appendChild(createGeometryCell(`${renderedWidth}×${renderedHeight}`));
+    geometrySection.appendChild(createGeometryCell(`${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`));
+    geometrySection.appendChild(createGeometryCell(`${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`));
 
     infoBox.appendChild(fileSection);
     if (includePerformanceSection && performanceSection.childNodes.length > 0) {
