@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Image Details Inspector",
-  "version": "1.3",
+  "version": "1.4",
   "description": "Inspect image dimensions and aspect ratios with an interactive overlay",
   "action": {
     "default_popup": "popup.html",

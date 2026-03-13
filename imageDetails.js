@@ -497,12 +497,20 @@
       window.innerHeight || document.documentElement.clientHeight
     );
 
-    const candidateAnchors = [
-      { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
-      { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top },
-      { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
-      { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin }
-    ];
+    const isLandscape = imgPageRect.width > imgPageRect.height;
+    const candidateAnchors = isLandscape
+      ? [
+        { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
+        { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin },
+        { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
+        { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top }
+      ]
+      : [
+        { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
+        { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top },
+        { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
+        { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin }
+      ];
 
     const pageMinLeft = margin;
     const pageMaxLeft = Math.max(pageMinLeft, documentWidth - infoWidth - margin);
@@ -531,6 +539,7 @@
 
       return {
         rect,
+        placement: candidate.name,
         imageOverlap,
         overlayOverlap,
         clampPenalty,
@@ -545,7 +554,60 @@
       return a.preferenceOrder - b.preferenceOrder;
     });
 
-    return scored[0].rect;
+    return scored[0];
+  }
+
+  function createAssociationBorder(imgPageRect, placement, color) {
+    const borderThickness = 3;
+    const border = document.createElement('div');
+    border.className = 'image-details-association-border';
+
+    Object.assign(border.style, {
+      position: 'absolute',
+      pointerEvents: 'none',
+      zIndex: '9999',
+      backgroundColor: color,
+      boxShadow: '0 0 2px rgba(0,0,0,0.2)'
+    });
+
+    if (placement === 'left') {
+      Object.assign(border.style, {
+        left: `${imgPageRect.left}px`,
+        top: `${imgPageRect.top}px`,
+        width: `${borderThickness}px`,
+        height: `${imgPageRect.height}px`
+      });
+      return border;
+    }
+
+    if (placement === 'right') {
+      Object.assign(border.style, {
+        left: `${imgPageRect.right - borderThickness}px`,
+        top: `${imgPageRect.top}px`,
+        width: `${borderThickness}px`,
+        height: `${imgPageRect.height}px`
+      });
+      return border;
+    }
+
+    if (placement === 'top') {
+      Object.assign(border.style, {
+        left: `${imgPageRect.left}px`,
+        top: `${imgPageRect.top}px`,
+        width: `${imgPageRect.width}px`,
+        height: `${borderThickness}px`
+      });
+      return border;
+    }
+
+    Object.assign(border.style, {
+      left: `${imgPageRect.left}px`,
+      top: `${imgPageRect.bottom - borderThickness}px`,
+      width: `${imgPageRect.width}px`,
+      height: `${borderThickness}px`
+    });
+
+    return border;
   }
 
   async function createOverlayForImage(img, options = {}) {
@@ -731,17 +793,25 @@
     overlayContainer.appendChild(infoBox);
 
     const infoRect = infoBox.getBoundingClientRect();
-    const targetRect = allowExternalPlacement
+    const placementResult = allowExternalPlacement
       ? resolveInfoBoxPlacement(imgPageRect, infoRect.width, infoRect.height, occupiedRects)
       : {
-        left: imgPageRect.left,
-        top: imgPageRect.top,
-        right: imgPageRect.left + infoRect.width,
-        bottom: imgPageRect.top + infoRect.height
+        placement: 'top',
+        rect: {
+          left: imgPageRect.left,
+          top: imgPageRect.top,
+          right: imgPageRect.left + infoRect.width,
+          bottom: imgPageRect.top + infoRect.height
+        }
       };
+
+    const targetRect = placementResult.rect;
 
     infoBox.style.left = `${targetRect.left}px`;
     infoBox.style.top = `${targetRect.top}px`;
+
+    const associationBorder = createAssociationBorder(imgPageRect, placementResult.placement, backgroundColor);
+    overlayContainer.appendChild(associationBorder);
 
     if (trackOverlay) {
       imageOverlayMap.set(img, overlayContainer);
