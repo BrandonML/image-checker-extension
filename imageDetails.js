@@ -855,7 +855,8 @@
 
   window.imageDetailsAPI = {
     createOverlayForImage,
-    clearAllOverlays
+    clearAllOverlays,
+    parseAspectRatioValue
   };
 
   async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, precalculatedImageRects = null) {
