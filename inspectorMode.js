@@ -5,22 +5,9 @@
 
     const imageInspectorBoundImages = window.imageInspectorBoundImages;
 
-    const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
-    const IMAGE_TYPE_ALIASES = {
-        jpg: 'jpeg',
-        'svg+xml': 'svg',
-        'x-icon': 'ico',
-        'vnd.microsoft.icon': 'ico'
-    };
-
-    function normalizeImageType(type) {
-        if (!type) return null;
-
-        const normalized = type.toLowerCase();
-        const mappedType = IMAGE_TYPE_ALIASES[normalized] || normalized;
-
-        return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
-    }
+    const {
+        normalizeImageType
+    } = window.imageDetailsUtils;
 
     function getNormalizedImageType(src) {
         if (!src) return null;

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Page for Image Inspector</title>
+    <style>
+        .image-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            flex-wrap: wrap;
+        }
+        img {
+            border: 1px solid #ccc;
+            min-width: 100px;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Inspector Test Page</h1>
+    <div class="image-container">
+        <!-- Red dot data URL for a PNG -->
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==" alt="Red Dot" id="img1" width="100" height="100">
+        <!-- Blue dot data URL for a PNG -->
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12Mw9X//zwAdEANKEALHxBtiNRMAAt81O8vT0iUAAAAASUVORK5CYII=" alt="Blue Dot" id="img2" width="100" height="100">
+    </div>
+</body>
+</html>

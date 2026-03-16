@@ -1,15 +1,13 @@
 // Function to prevent duplicate execution
 (function () {
-  const SUPPORTED_IMAGE_TYPES = new Set(['jpeg', 'png', 'webp', 'svg', 'heif', 'heic', 'gif', 'avif', 'bmp', 'ico']);
-  const FILTERABLE_IMAGE_TYPES = new Set(['jpeg', 'png', 'gif', 'svg', 'webp']);
-  const IMAGE_TYPE_ALIASES = {
-    jpg: 'jpeg',
-    'svg+xml': 'svg',
-    'x-icon': 'ico',
-    'vnd.microsoft.icon': 'ico'
-  };
-  const ASPECT_RATIO_FILTER_MODES = new Set(['any', 'match', 'exclude']);
-  const ASPECT_RATIO_OPTIONS = new Set(['1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16', '21:9', '16:10', '5:4', '32:9']);
+  const {
+    SUPPORTED_IMAGE_TYPES,
+    FILTERABLE_IMAGE_TYPES,
+    ASPECT_RATIO_FILTER_MODES,
+    ASPECT_RATIO_OPTIONS_SET: ASPECT_RATIO_OPTIONS,
+    normalizeImageType
+  } = window.imageDetailsUtils;
+
   const ASPECT_RATIO_TOLERANCE = 0.015;
   const OVERLAY_PLACEMENT_THRESHOLD_PX = 150;
 
@@ -39,15 +37,6 @@
   }
 
   window.imageDetailsApplyOverlayVerticalPlacement = applyOverlayVerticalPlacement;
-
-  function normalizeImageType(type) {
-    if (!type) return null;
-
-    const normalized = type.toLowerCase();
-    const mappedType = IMAGE_TYPE_ALIASES[normalized] || normalized;
-
-    return SUPPORTED_IMAGE_TYPES.has(mappedType) ? mappedType : null;
-  }
 
   function getTypeFromDataUrl(src) {
     if (!src) return null;
@@ -855,7 +844,8 @@
 
   window.imageDetailsAPI = {
     createOverlayForImage,
-    clearAllOverlays
+    clearAllOverlays,
+    parseAspectRatioValue
   };
 
   async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, precalculatedImageRects = null) {
