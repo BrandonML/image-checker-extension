@@ -130,6 +130,7 @@
 
   const processedImageState = new WeakMap();
   const imageOverlayMap = new WeakMap();
+  const imageMetricsCache = new Map();
   const overlaidImages = new Set();
   let refreshScheduled = false;
   let refreshInProgress = false;
@@ -362,46 +363,55 @@
       return { fileType: 'N/A', fileSize: 'N/A', mimeType: 'N/A' };
     }
 
-    if (url.toLowerCase().startsWith('data:')) {
-      const dataUrlMatch = url.match(/^data:([^;,]+)/i);
-      const mimeType = dataUrlMatch ? dataUrlMatch[1].toLowerCase() : 'image/unknown';
-      const typeFromMime = mimeType.startsWith('image/') ? mimeType.split('/')[1] : '';
-      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
-      const byteLength = getApproximateDataUrlSize(url);
-
-      return {
-        fileType: normalizedType ? normalizedType.toUpperCase() : 'N/A',
-        fileSize: Number.isFinite(byteLength) ? formatBytes(byteLength) : 'N/A',
-        mimeType
-      };
+    if (imageMetricsCache.has(url)) {
+      return imageMetricsCache.get(url);
     }
 
-    try {
-      const responseMetadata = await getImageResponseMetadata(url);
-      const mimeType = responseMetadata.mimeType || 'N/A';
-      const typeFromMime = responseMetadata.mimeType && responseMetadata.mimeType.toLowerCase().startsWith('image/')
-        ? responseMetadata.mimeType.split('/')[1]
-        : '';
-      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
-      const fileType = normalizedType ? normalizedType.toUpperCase() : 'N/A';
-      const resourceTimingSize = getResourceTimingSize(url);
-      const resolvedByteLength = responseMetadata.byteLength ?? resourceTimingSize;
+    const metricsPromise = (async () => {
+      if (url.toLowerCase().startsWith('data:')) {
+        const dataUrlMatch = url.match(/^data:([^;,]+)/i);
+        const mimeType = dataUrlMatch ? dataUrlMatch[1].toLowerCase() : 'image/unknown';
+        const typeFromMime = mimeType.startsWith('image/') ? mimeType.split('/')[1] : '';
+        const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+        const byteLength = getApproximateDataUrlSize(url);
 
-      return {
-        fileType,
-        fileSize: Number.isFinite(resolvedByteLength) && resolvedByteLength >= 0 ? formatBytes(resolvedByteLength) : 'N/A',
-        mimeType
-      };
-    } catch (error) {
-      const fallbackType = getNormalizedImageType(url);
-      const fallbackSize = getResourceTimingSize(url);
+        return {
+          fileType: normalizedType ? normalizedType.toUpperCase() : 'N/A',
+          fileSize: Number.isFinite(byteLength) ? formatBytes(byteLength) : 'N/A',
+          mimeType
+        };
+      }
 
-      return {
-        fileType: fallbackType ? fallbackType.toUpperCase() : 'N/A',
-        fileSize: Number.isFinite(fallbackSize) ? formatBytes(fallbackSize) : 'N/A',
-        mimeType: 'N/A'
-      };
-    }
+      try {
+        const responseMetadata = await getImageResponseMetadata(url);
+        const mimeType = responseMetadata.mimeType || 'N/A';
+        const typeFromMime = responseMetadata.mimeType && responseMetadata.mimeType.toLowerCase().startsWith('image/')
+          ? responseMetadata.mimeType.split('/')[1]
+          : '';
+        const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+        const fileType = normalizedType ? normalizedType.toUpperCase() : 'N/A';
+        const resourceTimingSize = getResourceTimingSize(url);
+        const resolvedByteLength = responseMetadata.byteLength ?? resourceTimingSize;
+
+        return {
+          fileType,
+          fileSize: Number.isFinite(resolvedByteLength) && resolvedByteLength >= 0 ? formatBytes(resolvedByteLength) : 'N/A',
+          mimeType
+        };
+      } catch (error) {
+        const fallbackType = getNormalizedImageType(url);
+        const fallbackSize = getResourceTimingSize(url);
+
+        return {
+          fileType: fallbackType ? fallbackType.toUpperCase() : 'N/A',
+          fileSize: Number.isFinite(fallbackSize) ? formatBytes(fallbackSize) : 'N/A',
+          mimeType: 'N/A'
+        };
+      }
+    })();
+
+    imageMetricsCache.set(url, metricsPromise);
+    return metricsPromise;
   }
 
   function shouldRenderOverlay(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
