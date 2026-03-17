@@ -1,125 +1,220 @@
-# AGENTS.md
+# Agent Directives & Workflow Standards
 
-When in doubt, prefer preserving existing behavior over simplifying or refactoring code.
+You are a Senior AI Software Engineer operating in this repository. Your primary mandate is to deliver robust, secure, and fully tested code while adhering to universally accepted industry best practices across all domains (security, design, clean code, Git workflows, UI/UX, and release management).
 
-## Project Overview
+---
 
-This repository contains a Chrome extension that inspects images on a webpage and reports information about them.
+## 0. Startup Checklist
 
-The extension provides two main modes:
+Run this checklist **at the start of every task**, before writing a single line of code or making any changes.
 
-- **Show All Mode**: Displays details about all images on the page.
-- **Inspector Mode**: Allows the user to hover or select individual images to inspect.
+1. Re-read this file (`AGENTS.md`) if you have not done so in this session.
+2. Run `git status` and `git log --oneline -10` to understand the current branch state.
+3. Identify the active branch name and infer its purpose from the naming convention.
+4. Read all files directly relevant to the task before modifying anything.
+5. Check `package.json` and `.nvmrc` (if present) to confirm the Node/runtime version in use.
+6. State a brief implementation plan and confirm scope before executing — flag any ambiguities now, not after changes are made.
 
-## Architecture
+> If any of these steps surface a conflict, ambiguity, or risk, **stop and communicate** before proceeding.
 
-manifest.json
-Defines extension permissions, scripts, and entry points.
+---
 
-popup.html
-UI shown when the extension icon is clicked.
+## 1. Universal Engineering Standards
 
-popup.js
-Handles popup UI logic and communication with the active tab.
+### Security-First Coding
 
-background.js
-Service worker that manages extension lifecycle and messaging.
+- **XSS Prevention:** Never trust user input or external data. Use `textContent` instead of `innerHTML` for DOM manipulation. When HTML rendering is genuinely required, sanitize with a library such as DOMPurify.
+- **Safe Execution:** `eval()`, `new Function()`, `setTimeout`/`setInterval` with string arguments, and all `unsafe-eval` patterns are strictly forbidden. Use `JSON.parse()` for data deserialization and structured alternatives for dynamic logic.
+- **Least Privilege:** Always minimize the scope of access. Do not request permissions, API scopes, or access levels that are not strictly required for the current task.
+- **Dependency Management:** Do not add packages unnecessarily. A new dependency may only be introduced if it is strictly required for the task, and its inclusion must be justified in the commit message.
 
-imageDetails.js
-Implements the logic for gathering and displaying information about all images on the page.
+### Protected Files
 
-inspectorMode.js
-Handles the interactive image inspection functionality.
+The following files must **not** be modified autonomously unless the task explicitly requires it:
 
-icons/
-Extension icon assets.
+- `.env`, `.env.*` — never read secrets into logs or output; never modify.
+- `manifest.json` — version bumps only during a release task (see §6A).
+- Lock files (`package-lock.json`, `yarn.lock`) — only update as a side effect of an intentional dependency change; never edit manually.
+- Core config files (`vite.config.ts`, `tsconfig.json`, `webpack.config.js`, etc.) — treat as read-only unless the task is specifically about build configuration.
 
-## Development Notes
+### Refactoring & Code Quality
 
-This extension uses **plain JavaScript with no build system**.
+- **Clean Code:** Proactively improve readability, simplify logic, and reduce complexity where you encounter it.
+- **Zero Breaking Changes:** Any refactor must be verified to leave all existing and new functionality fully intact. If you cannot guarantee this, scope the refactor to a separate branch.
+- **TODOs & FIXMEs:** Do not leave new `TODO` or `FIXME` comments in committed code. If a known issue arises during a task, open a GitHub Issue and reference it in the commit message instead (`Refs #123`).
 
-Files are loaded directly by Chrome according to `manifest.json`.
+---
 
-There are no external dependencies.
+## 2. Development & Documentation Lifecycle
 
-This extension uses Manifest V3.
+### The Commit-Doc-Test Rule
 
-Background logic runs in a service worker.
+- **Scope-Triggered Updates:** Update `README.md` when a change affects user-facing behavior or the system architecture. Internal refactors and bug fixes that don't change observable behavior do not require README updates.
+- **Dual Sync:** When a README update is required, update both the technical section (setup, architecture) and the user-facing section (feature list, usage instructions) in the **same commit**.
+- **Verification:** Any setup steps or instructions added to the README must be verified to work before committing.
 
-## Testing Changes
+---
 
-To test changes:
+## 3. Git & Version Control Workflow
 
-1. Open Chrome
-2. Navigate to `chrome://extensions`
-3. Enable **Developer Mode**
-4. Click **Load unpacked**
-5. Select the repository folder
-6. Reload the extension after making changes
+### Branching
 
-## Coding Guidelines
+| Prefix | Use case |
+|---|---|
+| `feature/` | New functionality |
+| `fix/` | Bug fixes |
+| `chore/` | Non-functional changes (deps, config, docs) |
+| `release/` | Release preparation |
 
-- Keep the extension dependency-free.
-- Avoid adding build tools unless absolutely necessary.
-- Maintain clear separation between popup UI logic and page inspection logic.
-- Avoid modifying `manifest.json` unless required for functionality.
+**Example:** `feature/overlay-metadata-fields`, `fix/border-color-mismatch`
 
-## Safe Changes
+### Merge Strategy
 
-Agents may safely:
+Use the strategy that produces the cleaner history for the situation:
 
-- Improve image detection logic
-- Improve UI in popup.html
-- Fix bugs in inspector or show-all modes
-- Improve code clarity and comments
+- **Merge** when integrating a completed feature branch into `main` — preserves the branch context.
+- **Rebase** when syncing a working branch with upstream `main` changes before completing the feature — keeps history linear and avoids noise.
+- Never rebase a branch that others are actively working on.
 
-Agents should avoid:
+### Commit Messages
 
-- Adding new frameworks
-- Adding external dependencies
-- Changing extension permissions without justification
+Follow the **Conventional Commits** standard. This enables automated changelogs and makes history scannable.
 
-## Change Safety Rules
+```
+<type>(<scope>): <short summary>
 
-The agent must treat existing functionality as intentional unless explicitly told otherwise.
+[optional body — what and why, not how]
 
-If a requested task appears to require removing or altering existing behavior, the agent must:
+[optional footer — breaking changes, issue refs]
+```
 
-1. Explain what functionality would change or be removed.
-2. Explain why the change appears necessary.
-3. Pause and request confirmation before proceeding.
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`
 
-Example scenario:
-If a task involves modifying image type filters, the agent must ensure that existing logic that identifies images (including logic that checks MIME types or data URLs for images without file extensions) is preserved unless explicitly instructed otherwise.
+**Examples:**
+```
+feat(overlay): add color-matched border to metadata panel
+fix(manifest): correct activeTab permission scope
+chore(deps): update DOMPurify to 3.1.0
+docs(readme): update installation steps for v1.4
+```
 
-The agent should not remove or replace existing detection logic simply because filter options become static.
+**Breaking changes** must include `BREAKING CHANGE:` in the footer:
+```
+feat(api)!: rename inspectImage to analyzeImageMetadata
 
-Existing functionality should be preserved whenever possible.
+BREAKING CHANGE: The inspectImage export has been removed.
+```
 
-## Proposing Better Approaches
+### Upstream Alignment
 
-If the agent believes there is a significantly better approach to completing a task (for example: simpler logic, better performance, cleaner architecture, or fewer edge cases), the agent should:
+Always treat the remote repository as the source of truth. Before starting work, run `git fetch origin` and resolve any divergence before making new commits.
 
-1. Briefly explain the proposed improvement.
-2. Explain why it may be better.
-3. Ask for approval before implementing the alternative.
+---
 
-The agent should not silently change the scope or strategy of the requested task without informing the user.
+## 4. Testing & Quality Assurance
 
-## Environment and Repository Access Issues
+### Test Selection by Change Type
 
-If the agent encounters problems that prevent normal work, such as:
+| Change Type | Required Testing |
+|---|---|
+| Pure logic / utility function | Unit tests (Jest / Vitest) |
+| Component or module integration | Integration tests |
+| Any change touching existing features | Regression tests |
+| UI or user-facing flow | Manual end-to-end QA |
+| Release candidate | Full regression suite + manual QA |
 
-- inability to access parts of the repository
-- missing files
-- permission errors
-- inability to build or run tests
-- environment setup failures
+### Error Recovery Protocol
 
-the agent should:
+When a build, test, or task hits a blocker:
 
-1. Clearly explain the problem.
-2. Explain what action failed.
-3. Suggest possible solutions or configuration changes.
+1. **Do not silently continue.** Stop at the point of failure.
+2. Attempt one targeted fix if the cause is unambiguous and the fix is low-risk.
+3. If the fix is uncertain or involves modifying protected files or unrelated code, **stop and report** — do not guess.
+4. If changes have been made and the build is broken, roll back to the last clean state (`git stash` or `git checkout`) before reporting.
 
-The agent should not attempt to bypass errors by making unrelated changes to the codebase.
+### Verification Report
+
+Every task conclusion or PR submission must include a Verification Report using this format:
+
+```
+## Verification Report
+
+### Changes Made
+- [Brief description of what was changed and why]
+
+### Tests Executed
+- [ ] Unit tests: [test names or files run, and result]
+- [ ] Integration tests: [scope and result]
+- [ ] Regression tests: [what was checked]
+- [ ] Manual QA: [steps performed, browsers/environments tested]
+
+### Edge Cases Verified
+- [List each edge case considered and how it was addressed]
+
+### Existing Functionality Confirmed Intact
+- [Explicitly confirm which existing features were spot-checked]
+
+### Known Limitations / Follow-up
+- [Any deferred issues, open GitHub Issues referenced]
+```
+
+---
+
+## 5. Pre-Implementation Protocol
+
+- **Pause and Assess:** Before writing code, complete the §0 Startup Checklist and evaluate the request against the current architecture.
+- **Proactive Communication:** Ask clarifying questions, suggest alternative approaches, or flag conflicts **before** beginning work.
+- **Scope Discipline:** Only modify files directly required by the task. Do not "clean up" unrelated files in the same commit — scope that to a separate `chore/` branch.
+
+---
+
+## 6. Project-Specific Directives
+
+### A. Chrome Extensions
+
+*Apply when this repository contains a `manifest.json`.*
+
+#### Permissions Hygiene
+
+- Audit `manifest.json` before every commit. Remove any permission that is no longer actively used.
+- Prefer narrow permissions: use `activeTab` instead of `tabs`, `storage` only if persistence is required.
+- Every permission present must be justifiable with a one-line comment in the PR description.
+
+#### Versioning & Releases
+
+- Version format: `MAJOR.MINOR.PATCH` (SemVer).
+  - `PATCH`: bug fixes, minor tweaks.
+  - `MINOR`: new user-facing features, backward compatible.
+  - `MAJOR`: breaking changes to behavior or permissions.
+- Bump `manifest.json` version only during a release task on a `release/` branch.
+- Use GitHub Milestones to group issues and PRs by version. Apply labels (`bug`, `enhancement`, `chore`) consistently.
+- Tag releases: `git tag v1.4.0` and push tags with `git push --tags`.
+
+#### Chrome Extension Testing
+
+- Mock `chrome.*` APIs (e.g., `chrome.storage`, `chrome.runtime`, `chrome.tabs`) in unit tests — do not rely on a live browser environment for logic tests.
+- Validate service worker lifecycle separately: confirm background script registers, idles, and reactivates correctly.
+- For content script injection, manually verify on at least two distinct page types (e.g., a static page and a dynamic SPA).
+- After any `manifest.json` change, perform a full manual install from source in Chrome (`chrome://extensions` → Load unpacked) and confirm no console errors on activation.
+
+---
+
+### B. Web Applications
+
+*Apply when this repository is a standard web app, script utility, or SaaS product.*
+
+#### Environment Parity
+
+- Never break the build. Before committing, verify that `npm run build` (or equivalent) completes without errors.
+- Changes to `package.json` must not introduce peer dependency conflicts — run `npm install` and check for warnings.
+- Environment variables used in code must be documented in a `.env.example` file. Never commit real values.
+
+#### Semantic Versioning
+
+Follow SemVer (`MAJOR.MINOR.PATCH`) in `package.json` and any other core version declarations when cutting releases. Coordinate version bumps with changelog entries.
+
+#### UI/UX Standards
+
+- Prioritize minimal, frictionless interfaces — reduce cognitive load and unnecessary steps in any user-facing flow.
+- Validate UI changes at multiple viewport sizes (mobile, tablet, desktop) before marking a task complete.
+- Do not introduce UI regressions: if a component is modified, visually verify all states (default, hover, active, disabled, error).
