@@ -152,15 +152,15 @@ document.addEventListener('DOMContentLoaded', function () {
             // Always disable the current mode before enabling a new one.
             await executeScriptSafe({
                 target: { tabId: activeTabId },
-                function: disableInspectorMode,
+                func: disableInspectorMode,
             });
 
             if (mode === 'inspector') {
                 await executeScriptSafe({
                     target: { tabId: activeTabId },
-                    function: () => {
+                    func: () => {
                         window.imageDetailsOverlayApiOnly = true;
-                    }
+                    },
                 });
 
                 await executeScriptSafe({
