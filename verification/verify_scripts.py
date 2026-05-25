@@ -9,10 +9,13 @@ def verify_extension():
     with sync_playwright() as p:
         browser = p.chromium.launch_persistent_context(
             "",
-            headless=False,
+            headless=True,
             args=[
                 f"--disable-extensions-except={extension_path}",
                 f"--load-extension={extension_path}",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-gpu",
             ],
         )
 

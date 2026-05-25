@@ -5,38 +5,10 @@
     FILTERABLE_IMAGE_TYPES,
     ASPECT_RATIO_FILTER_MODES,
     ASPECT_RATIO_OPTIONS_SET: ASPECT_RATIO_OPTIONS,
-    normalizeImageType
+    normalizeImageType,
   } = window.imageDetailsUtils;
 
   const ASPECT_RATIO_TOLERANCE = 0.015;
-  const OVERLAY_PLACEMENT_THRESHOLD_PX = 150;
-
-  function applyOverlayVerticalPlacement(infoBox, imgRect) {
-    if (!infoBox || !imgRect) return;
-
-    infoBox.style.top = '0';
-    infoBox.style.bottom = 'auto';
-    infoBox.style.marginTop = '0';
-    infoBox.style.marginBottom = '0';
-
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const spaceBelow = viewportHeight - imgRect.bottom;
-    const spaceAbove = imgRect.top;
-
-    if (spaceBelow < OVERLAY_PLACEMENT_THRESHOLD_PX && spaceAbove >= OVERLAY_PLACEMENT_THRESHOLD_PX) {
-      infoBox.style.bottom = '100%';
-      infoBox.style.top = 'auto';
-      infoBox.style.marginBottom = '5px';
-      return;
-    }
-
-    if (spaceBelow >= OVERLAY_PLACEMENT_THRESHOLD_PX) {
-      infoBox.style.top = '100%';
-      infoBox.style.marginTop = '5px';
-    }
-  }
-
-  window.imageDetailsApplyOverlayVerticalPlacement = applyOverlayVerticalPlacement;
 
   function getTypeFromDataUrl(src) {
     if (!src) return null;
@@ -50,7 +22,7 @@
   function getTypeFromUrlExtension(src) {
     if (!src) return null;
 
-    const baseUrl = src.split('?')[0].split('#')[0];
+    const baseUrl = src.split("?")[0].split("#")[0];
     const extensionMatch = baseUrl.match(/\.([a-zA-Z0-9+.-]+)$/);
 
     if (!extensionMatch) return null;
@@ -63,7 +35,7 @@
 
     try {
       const parsedUrl = new URL(src, window.location.href);
-      const typeHints = ['format', 'fm', 'type', 'ext'];
+      const typeHints = ["format", "fm", "type", "ext"];
 
       for (const key of typeHints) {
         const hintedValue = parsedUrl.searchParams.get(key);
@@ -82,38 +54,43 @@
   function getTypeFromPictureSource(img, src) {
     if (!(img instanceof HTMLImageElement)) return null;
 
-    const picture = img.closest('picture');
+    const picture = img.closest("picture");
     if (!picture) return null;
 
     const normalizedSrc = src || getImageSource(img);
 
-    const matchingSource = Array.from(picture.querySelectorAll('source')).find((source) => {
-      const sourceSrcset = source.getAttribute('srcset') || '';
-      if (!sourceSrcset || !normalizedSrc) return false;
+    const matchingSource = Array.from(picture.querySelectorAll("source")).find(
+      (source) => {
+        const sourceSrcset = source.getAttribute("srcset") || "";
+        if (!sourceSrcset || !normalizedSrc) return false;
 
-      return sourceSrcset
-        .split(',')
-        .map((candidate) => candidate.trim().split(/\s+/, 1)[0])
-        .some((candidateUrl) => {
-          if (!candidateUrl) return false;
+        return sourceSrcset
+          .split(",")
+          .map((candidate) => candidate.trim().split(/\s+/, 1)[0])
+          .some((candidateUrl) => {
+            if (!candidateUrl) return false;
 
-          try {
-            const resolvedCandidate = new URL(candidateUrl, document.baseURI).href;
-            const resolvedCurrent = new URL(normalizedSrc, document.baseURI).href;
-            return resolvedCandidate === resolvedCurrent;
-          } catch (error) {
-            return candidateUrl === normalizedSrc;
-          }
-        });
-    });
+            try {
+              const resolvedCandidate = new URL(candidateUrl, document.baseURI)
+                .href;
+              const resolvedCurrent = new URL(normalizedSrc, document.baseURI)
+                .href;
+              return resolvedCandidate === resolvedCurrent;
+            } catch (error) {
+              return candidateUrl === normalizedSrc;
+            }
+          });
+      },
+    );
 
-    const sourceWithType = matchingSource || picture.querySelector('source[type]');
+    const sourceWithType =
+      matchingSource || picture.querySelector("source[type]");
     if (!sourceWithType) return null;
 
-    const sourceType = sourceWithType.getAttribute('type') || '';
-    if (!sourceType.toLowerCase().startsWith('image/')) return null;
+    const sourceType = sourceWithType.getAttribute("type") || "";
+    if (!sourceType.toLowerCase().startsWith("image/")) return null;
 
-    const mimeSubtype = sourceType.split('/')[1] || sourceType;
+    const mimeSubtype = sourceType.split("/")[1] || sourceType;
     return normalizeImageType(mimeSubtype);
   }
 
@@ -121,10 +98,10 @@
     if (!src) return null;
 
     return (
-      getTypeFromDataUrl(src)
-      || getTypeFromUrlExtension(src)
-      || getTypeFromQueryParams(src)
-      || getTypeFromPictureSource(img, src)
+      getTypeFromDataUrl(src) ||
+      getTypeFromUrlExtension(src) ||
+      getTypeFromQueryParams(src) ||
+      getTypeFromPictureSource(img, src)
     );
   }
 
@@ -137,8 +114,13 @@
   const pendingRefreshImages = new Set();
 
   function formatAspectRatio(width, height) {
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
-      return 'N/A';
+    if (
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width === 0 ||
+      height === 0
+    ) {
+      return "N/A";
     }
 
     const gcd = (a, b) => {
@@ -155,33 +137,46 @@
   }
 
   function formatRatioDetails(width, height) {
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width === 0 || height === 0) {
-      return { ratioText: 'N/A', decimalText: 'N/A' };
+    if (
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width === 0 ||
+      height === 0
+    ) {
+      return { ratioText: "N/A", decimalText: "N/A" };
     }
 
     return {
       ratioText: formatAspectRatio(width, height),
-      decimalText: (width / height).toFixed(2)
+      decimalText: (width / height).toFixed(2),
     };
   }
-
 
   function parseAspectRatioValue(value) {
     if (!ASPECT_RATIO_OPTIONS.has(value)) return null;
 
-    const [widthPart, heightPart] = value.split(':');
+    const [widthPart, heightPart] = value.split(":");
     const width = Number(widthPart);
     const height = Number(heightPart);
 
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    if (
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width <= 0 ||
+      height <= 0
+    ) {
       return null;
     }
 
     return width / height;
   }
 
-  function imageMatchesAspectRatioFilter(img, aspectRatioMode, aspectRatioValue) {
-    if (aspectRatioMode === 'any') return true;
+  function imageMatchesAspectRatioFilter(
+    img,
+    aspectRatioMode,
+    aspectRatioValue,
+  ) {
+    if (aspectRatioMode === "any") return true;
 
     const targetRatio = parseAspectRatioValue(aspectRatioValue);
     if (!Number.isFinite(targetRatio)) return true;
@@ -189,44 +184,54 @@
     const intrinsicWidth = img.naturalWidth;
     const intrinsicHeight = img.naturalHeight;
 
-    if (!Number.isFinite(intrinsicWidth) || !Number.isFinite(intrinsicHeight) || intrinsicWidth <= 0 || intrinsicHeight <= 0) {
-      return aspectRatioMode === 'exclude';
+    if (
+      !Number.isFinite(intrinsicWidth) ||
+      !Number.isFinite(intrinsicHeight) ||
+      intrinsicWidth <= 0 ||
+      intrinsicHeight <= 0
+    ) {
+      return aspectRatioMode === "exclude";
     }
 
     const imageRatio = intrinsicWidth / intrinsicHeight;
     const ratioDiff = Math.abs(imageRatio - targetRatio);
     const isMatch = ratioDiff <= ASPECT_RATIO_TOLERANCE;
 
-    if (aspectRatioMode === 'match') return isMatch;
-    if (aspectRatioMode === 'exclude') return !isMatch;
+    if (aspectRatioMode === "match") return isMatch;
+    if (aspectRatioMode === "exclude") return !isMatch;
 
     return true;
   }
 
   function getCandidateSourceFromSrcset(srcset) {
-    if (!srcset) return '';
+    if (!srcset) return "";
 
     const firstCandidate = srcset
-      .split(',')
+      .split(",")
       .map((candidate) => candidate.trim())
       .find(Boolean);
 
-    if (!firstCandidate) return '';
+    if (!firstCandidate) return "";
 
     const [candidateUrl] = firstCandidate.split(/\s+/, 1);
-    return candidateUrl || '';
+    return candidateUrl || "";
   }
 
   function getImageSource(img) {
-    return img.currentSrc || img.getAttribute('src') || getCandidateSourceFromSrcset(img.getAttribute('srcset') || '') || '';
+    return (
+      img.currentSrc ||
+      img.getAttribute("src") ||
+      getCandidateSourceFromSrcset(img.getAttribute("srcset") || "") ||
+      ""
+    );
   }
 
   function formatBytes(value) {
-    if (!Number.isFinite(value) || value < 0) return 'N/A';
+    if (!Number.isFinite(value) || value < 0) return "N/A";
 
     if (value < 1024) return `${value} B`;
 
-    const units = ['KB', 'MB', 'GB', 'TB'];
+    const units = ["KB", "MB", "GB", "TB"];
     let size = value;
     let unitIndex = -1;
 
@@ -239,18 +244,21 @@
   }
 
   function getApproximateDataUrlSize(src) {
-    if (!src || !src.toLowerCase().startsWith('data:')) return null;
+    if (!src || !src.toLowerCase().startsWith("data:")) return null;
 
-    const commaIndex = src.indexOf(',');
+    const commaIndex = src.indexOf(",");
     if (commaIndex === -1) return null;
 
     const metadata = src.slice(0, commaIndex);
     const payload = src.slice(commaIndex + 1);
 
-    if (metadata.includes(';base64')) {
-      const sanitized = payload.replace(/\s/g, '');
-      const paddingLength = (sanitized.match(/=+$/) || [''])[0].length;
-      return Math.max(0, Math.floor((sanitized.length * 3) / 4) - paddingLength);
+    if (metadata.includes(";base64")) {
+      const sanitized = payload.replace(/\s/g, "");
+      const paddingLength = (sanitized.match(/=+$/) || [""])[0].length;
+      return Math.max(
+        0,
+        Math.floor((sanitized.length * 3) / 4) - paddingLength,
+      );
     }
 
     try {
@@ -261,15 +269,21 @@
   }
 
   function getResourceTimingSize(url) {
-    if (!url || typeof performance.getEntriesByName !== 'function') return null;
+    if (!url || typeof performance.getEntriesByName !== "function") return null;
 
     const entries = performance.getEntriesByName(url);
     for (let index = entries.length - 1; index >= 0; index -= 1) {
       const entry = entries[index];
       if (!(entry instanceof PerformanceResourceTiming)) continue;
 
-      const candidates = [entry.decodedBodySize, entry.encodedBodySize, entry.transferSize];
-      const size = candidates.find((candidate) => Number.isFinite(candidate) && candidate > 0);
+      const candidates = [
+        entry.decodedBodySize,
+        entry.encodedBodySize,
+        entry.transferSize,
+      ];
+      const size = candidates.find(
+        (candidate) => Number.isFinite(candidate) && candidate > 0,
+      );
       if (Number.isFinite(size) && size > 0) {
         return size;
       }
@@ -285,24 +299,29 @@
         return;
       }
 
-      chrome.runtime.sendMessage({ type: 'fetchImageMetadata', url }, (response) => {
-        if (chrome.runtime.lastError) {
-          resolve(null);
-          return;
-        }
+      chrome.runtime.sendMessage(
+        { type: "fetchImageMetadata", url },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            resolve(null);
+            return;
+          }
 
-        if (!response || response.ok !== true) {
-          resolve(null);
-          return;
-        }
+          if (!response || response.ok !== true) {
+            resolve(null);
+            return;
+          }
 
-        resolve({
-          mimeType: typeof response.mimeType === 'string' ? response.mimeType : null,
-          byteLength: Number.isFinite(response.byteLength) && response.byteLength >= 0
-            ? response.byteLength
-            : null
-        });
-      });
+          resolve({
+            mimeType:
+              typeof response.mimeType === "string" ? response.mimeType : null,
+            byteLength:
+              Number.isFinite(response.byteLength) && response.byteLength >= 0
+                ? response.byteLength
+                : null,
+          });
+        },
+      );
     });
   }
 
@@ -313,24 +332,24 @@
     }
 
     const requestAttempts = [
-      { method: 'HEAD', options: {} },
-      { method: 'GET', options: { headers: { Range: 'bytes=0-0' } } },
-      { method: 'GET', options: {} }
+      { method: "HEAD", options: {} },
+      { method: "GET", options: { headers: { Range: "bytes=0-0" } } },
+      { method: "GET", options: {} },
     ];
 
     for (const attempt of requestAttempts) {
       try {
         const response = await fetch(url, {
           method: attempt.method,
-          cache: 'force-cache',
-          ...attempt.options
+          cache: "force-cache",
+          ...attempt.options,
         });
 
         if (!response.ok) continue;
 
-        const contentType = response.headers.get('content-type') || '';
-        const contentLength = response.headers.get('content-length');
-        const contentRange = response.headers.get('content-range') || '';
+        const contentType = response.headers.get("content-type") || "";
+        const contentLength = response.headers.get("content-length");
+        const contentRange = response.headers.get("content-range") || "";
 
         let byteLength = Number(contentLength);
         if (!Number.isFinite(byteLength) || byteLength < 0) {
@@ -340,14 +359,18 @@
           }
         }
 
-        if ((!Number.isFinite(byteLength) || byteLength < 0) && attempt.method === 'GET') {
+        if (
+          (!Number.isFinite(byteLength) || byteLength < 0) &&
+          attempt.method === "GET"
+        ) {
           const buffer = await response.clone().arrayBuffer();
           byteLength = buffer.byteLength;
         }
 
         return {
-          mimeType: contentType ? contentType.split(';')[0].trim() : null,
-          byteLength: Number.isFinite(byteLength) && byteLength >= 0 ? byteLength : null
+          mimeType: contentType ? contentType.split(";")[0].trim() : null,
+          byteLength:
+            Number.isFinite(byteLength) && byteLength >= 0 ? byteLength : null,
         };
       } catch (error) {
         // Ignore request failures and continue with additional fallbacks.
@@ -359,52 +382,72 @@
 
   async function getImageMetrics(url) {
     if (!url) {
-      return { fileType: 'N/A', fileSize: 'N/A', mimeType: 'N/A' };
+      return { fileType: "N/A", fileSize: "N/A", mimeType: "N/A" };
     }
 
-    if (url.toLowerCase().startsWith('data:')) {
+    if (url.toLowerCase().startsWith("data:")) {
       const dataUrlMatch = url.match(/^data:([^;,]+)/i);
-      const mimeType = dataUrlMatch ? dataUrlMatch[1].toLowerCase() : 'image/unknown';
-      const typeFromMime = mimeType.startsWith('image/') ? mimeType.split('/')[1] : '';
-      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+      const mimeType = dataUrlMatch
+        ? dataUrlMatch[1].toLowerCase()
+        : "image/unknown";
+      const typeFromMime = mimeType.startsWith("image/")
+        ? mimeType.split("/")[1]
+        : "";
+      const normalizedType =
+        normalizeImageType(typeFromMime) || getNormalizedImageType(url);
       const byteLength = getApproximateDataUrlSize(url);
 
       return {
-        fileType: normalizedType ? normalizedType.toUpperCase() : 'N/A',
-        fileSize: Number.isFinite(byteLength) ? formatBytes(byteLength) : 'N/A',
-        mimeType
+        fileType: normalizedType ? normalizedType.toUpperCase() : "N/A",
+        fileSize: Number.isFinite(byteLength) ? formatBytes(byteLength) : "N/A",
+        mimeType,
       };
     }
 
     try {
       const responseMetadata = await getImageResponseMetadata(url);
-      const mimeType = responseMetadata.mimeType || 'N/A';
-      const typeFromMime = responseMetadata.mimeType && responseMetadata.mimeType.toLowerCase().startsWith('image/')
-        ? responseMetadata.mimeType.split('/')[1]
-        : '';
-      const normalizedType = normalizeImageType(typeFromMime) || getNormalizedImageType(url);
-      const fileType = normalizedType ? normalizedType.toUpperCase() : 'N/A';
+      const mimeType = responseMetadata.mimeType || "N/A";
+      const typeFromMime =
+        responseMetadata.mimeType &&
+        responseMetadata.mimeType.toLowerCase().startsWith("image/")
+          ? responseMetadata.mimeType.split("/")[1]
+          : "";
+      const normalizedType =
+        normalizeImageType(typeFromMime) || getNormalizedImageType(url);
+      const fileType = normalizedType ? normalizedType.toUpperCase() : "N/A";
       const resourceTimingSize = getResourceTimingSize(url);
-      const resolvedByteLength = responseMetadata.byteLength ?? resourceTimingSize;
+      const resolvedByteLength =
+        responseMetadata.byteLength ?? resourceTimingSize;
 
       return {
         fileType,
-        fileSize: Number.isFinite(resolvedByteLength) && resolvedByteLength >= 0 ? formatBytes(resolvedByteLength) : 'N/A',
-        mimeType
+        fileSize:
+          Number.isFinite(resolvedByteLength) && resolvedByteLength >= 0
+            ? formatBytes(resolvedByteLength)
+            : "N/A",
+        mimeType,
       };
     } catch (error) {
       const fallbackType = getNormalizedImageType(url);
       const fallbackSize = getResourceTimingSize(url);
 
       return {
-        fileType: fallbackType ? fallbackType.toUpperCase() : 'N/A',
-        fileSize: Number.isFinite(fallbackSize) ? formatBytes(fallbackSize) : 'N/A',
-        mimeType: 'N/A'
+        fileType: fallbackType ? fallbackType.toUpperCase() : "N/A",
+        fileSize: Number.isFinite(fallbackSize)
+          ? formatBytes(fallbackSize)
+          : "N/A",
+        mimeType: "N/A",
       };
     }
   }
 
-  function shouldRenderOverlay(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  function shouldRenderOverlay(
+    img,
+    allowedTypes,
+    minSize,
+    aspectRatioMode,
+    aspectRatioValue,
+  ) {
     const src = getImageSource(img);
     const imgRect = img.getBoundingClientRect();
     const renderedWidth = Math.round(imgRect.width);
@@ -414,19 +457,24 @@
     }
 
     const fileType = getNormalizedImageType(src, img);
-    const hasTypeFilter = Array.isArray(allowedTypes) && allowedTypes.length > 0;
+    const hasTypeFilter =
+      Array.isArray(allowedTypes) && allowedTypes.length > 0;
 
     if (hasTypeFilter) {
       const fullTypeSelection =
-        allowedTypes.length === FILTERABLE_IMAGE_TYPES.size
-        && Array.from(FILTERABLE_IMAGE_TYPES).every((type) => allowedTypes.includes(type));
+        allowedTypes.length === FILTERABLE_IMAGE_TYPES.size &&
+        Array.from(FILTERABLE_IMAGE_TYPES).every((type) =>
+          allowedTypes.includes(type),
+        );
 
       if (!fullTypeSelection && !allowedTypes.includes(fileType)) {
         return false;
       }
     }
 
-    if (!imageMatchesAspectRatioFilter(img, aspectRatioMode, aspectRatioValue)) {
+    if (
+      !imageMatchesAspectRatioFilter(img, aspectRatioMode, aspectRatioValue)
+    ) {
       return false;
     }
 
@@ -435,7 +483,8 @@
 
   function getPageRectFromClientRect(rect) {
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    const scrollLeft =
+      window.pageXOffset || document.documentElement.scrollLeft;
 
     return {
       top: rect.top + scrollTop,
@@ -443,44 +492,52 @@
       width: rect.width,
       height: rect.height,
       right: rect.left + scrollLeft + rect.width,
-      bottom: rect.top + scrollTop + rect.height
+      bottom: rect.top + scrollTop + rect.height,
     };
   }
 
   function rectsIntersect(rectA, rectB) {
     return !(
-      rectA.right <= rectB.left
-      || rectA.left >= rectB.right
-      || rectA.bottom <= rectB.top
-      || rectA.top >= rectB.bottom
+      rectA.right <= rectB.left ||
+      rectA.left >= rectB.right ||
+      rectA.bottom <= rectB.top ||
+      rectA.top >= rectB.bottom
     );
   }
 
   function getIntersectionArea(rectA, rectB) {
-    const overlapWidth = Math.max(0, Math.min(rectA.right, rectB.right) - Math.max(rectA.left, rectB.left));
-    const overlapHeight = Math.max(0, Math.min(rectA.bottom, rectB.bottom) - Math.max(rectA.top, rectB.top));
+    const overlapWidth = Math.max(
+      0,
+      Math.min(rectA.right, rectB.right) - Math.max(rectA.left, rectB.left),
+    );
+    const overlapHeight = Math.max(
+      0,
+      Math.min(rectA.bottom, rectB.bottom) - Math.max(rectA.top, rectB.top),
+    );
     return overlapWidth * overlapHeight;
   }
 
   function getOccupiedOverlayRects() {
-    return Array.from(document.querySelectorAll('.image-details-infobox')).map((box) => {
-      const rect = box.getBoundingClientRect();
-      return getPageRectFromClientRect(rect);
-    });
+    return Array.from(document.querySelectorAll(".image-details-infobox")).map(
+      (box) => {
+        const rect = box.getBoundingClientRect();
+        return getPageRectFromClientRect(rect);
+      },
+    );
   }
 
   function getAllImageRects(excludeImg = null) {
-    return Array.from(document.querySelectorAll('img'))
+    return Array.from(document.querySelectorAll("img"))
       .filter((img) => img !== excludeImg && img.offsetParent !== null)
       .map((img) => getPageRectFromClientRect(img.getBoundingClientRect()));
   }
 
   function precalculateImageRects() {
-    return Array.from(document.querySelectorAll('img'))
+    return Array.from(document.querySelectorAll("img"))
       .filter((img) => img.offsetParent !== null)
       .map((img) => ({
         img,
-        rect: getPageRectFromClientRect(img.getBoundingClientRect())
+        rect: getPageRectFromClientRect(img.getBoundingClientRect()),
       }));
   }
 
@@ -488,17 +545,24 @@
     return Math.min(max, Math.max(min, value));
   }
 
-  function resolveInfoBoxPlacement(imgPageRect, infoWidth, infoHeight, occupiedRects, otherImageRects, layoutPreference = null) {
+  function resolveInfoBoxPlacement(
+    imgPageRect,
+    infoWidth,
+    infoHeight,
+    occupiedRects,
+    otherImageRects,
+    layoutPreference = null,
+  ) {
     const margin = 8;
     const documentWidth = Math.max(
       document.documentElement.scrollWidth,
       document.body ? document.body.scrollWidth : 0,
-      window.innerWidth || document.documentElement.clientWidth
+      window.innerWidth || document.documentElement.clientWidth,
     );
     const documentHeight = Math.max(
       document.documentElement.scrollHeight,
       document.body ? document.body.scrollHeight : 0,
-      window.innerHeight || document.documentElement.clientHeight
+      window.innerHeight || document.documentElement.clientHeight,
     );
 
     const isLargeImage = imgPageRect.width >= 500 && imgPageRect.height >= 500;
@@ -507,17 +571,49 @@
     const isLandscape = imgPageRect.width > imgPageRect.height;
     let candidateAnchors = isLandscape
       ? [
-        { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
-        { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin },
-        { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
-        { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top }
-      ]
+          {
+            name: "bottom",
+            left: imgPageRect.left,
+            top: imgPageRect.bottom + margin,
+          },
+          {
+            name: "top",
+            left: imgPageRect.left,
+            top: imgPageRect.top - infoHeight - margin,
+          },
+          {
+            name: "right",
+            left: imgPageRect.right + margin,
+            top: imgPageRect.top,
+          },
+          {
+            name: "left",
+            left: imgPageRect.left - infoWidth - margin,
+            top: imgPageRect.top,
+          },
+        ]
       : [
-        { name: 'right', left: imgPageRect.right + margin, top: imgPageRect.top },
-        { name: 'left', left: imgPageRect.left - infoWidth - margin, top: imgPageRect.top },
-        { name: 'bottom', left: imgPageRect.left, top: imgPageRect.bottom + margin },
-        { name: 'top', left: imgPageRect.left, top: imgPageRect.top - infoHeight - margin }
-      ];
+          {
+            name: "right",
+            left: imgPageRect.right + margin,
+            top: imgPageRect.top,
+          },
+          {
+            name: "left",
+            left: imgPageRect.left - infoWidth - margin,
+            top: imgPageRect.top,
+          },
+          {
+            name: "bottom",
+            left: imgPageRect.left,
+            top: imgPageRect.bottom + margin,
+          },
+          {
+            name: "top",
+            left: imgPageRect.left,
+            top: imgPageRect.top - infoHeight - margin,
+          },
+        ];
 
     if (layoutPreference) {
       candidateAnchors.sort((a, b) => {
@@ -528,9 +624,15 @@
     }
 
     const pageMinLeft = margin;
-    const pageMaxLeft = Math.max(pageMinLeft, documentWidth - infoWidth - margin);
+    const pageMaxLeft = Math.max(
+      pageMinLeft,
+      documentWidth - infoWidth - margin,
+    );
     const pageMinTop = margin;
-    const pageMaxTop = Math.max(pageMinTop, documentHeight - infoHeight - margin);
+    const pageMaxTop = Math.max(
+      pageMinTop,
+      documentHeight - infoHeight - margin,
+    );
 
     const scored = candidateAnchors.map((candidate, index) => {
       const left = clamp(candidate.left, pageMinLeft, pageMaxLeft);
@@ -541,7 +643,7 @@
         right: left + infoWidth,
         bottom: top + infoHeight,
         width: infoWidth,
-        height: infoHeight
+        height: infoHeight,
       };
 
       let imageOverlap = getIntersectionArea(rect, imgPageRect);
@@ -559,7 +661,8 @@
         otherImageOverlap += getIntersectionArea(rect, other);
       }
 
-      const clampPenalty = Math.abs(left - candidate.left) + Math.abs(top - candidate.top);
+      const clampPenalty =
+        Math.abs(left - candidate.left) + Math.abs(top - candidate.top);
 
       return {
         rect,
@@ -568,15 +671,19 @@
         overlayOverlap,
         otherImageOverlap,
         clampPenalty,
-        preferenceOrder: index
+        preferenceOrder: index,
       };
     });
 
     scored.sort((a, b) => {
-      if (a.imageOverlap !== b.imageOverlap) return a.imageOverlap - b.imageOverlap;
-      if (a.overlayOverlap !== b.overlayOverlap) return a.overlayOverlap - b.overlayOverlap;
-      if (a.otherImageOverlap !== b.otherImageOverlap) return a.otherImageOverlap - b.otherImageOverlap;
-      if (a.clampPenalty !== b.clampPenalty) return a.clampPenalty - b.clampPenalty;
+      if (a.imageOverlap !== b.imageOverlap)
+        return a.imageOverlap - b.imageOverlap;
+      if (a.overlayOverlap !== b.overlayOverlap)
+        return a.overlayOverlap - b.overlayOverlap;
+      if (a.otherImageOverlap !== b.otherImageOverlap)
+        return a.otherImageOverlap - b.otherImageOverlap;
+      if (a.clampPenalty !== b.clampPenalty)
+        return a.clampPenalty - b.clampPenalty;
       return a.preferenceOrder - b.preferenceOrder;
     });
 
@@ -584,19 +691,19 @@
   }
 
   function createAssociationBorder(imgPageRect, color) {
-    const border = document.createElement('div');
-    border.className = 'image-details-association-border';
+    const border = document.createElement("div");
+    border.className = "image-details-association-border";
 
     Object.assign(border.style, {
-      position: 'absolute',
+      position: "absolute",
       left: `${imgPageRect.left}px`,
       top: `${imgPageRect.top}px`,
       width: `${imgPageRect.width}px`,
       height: `${imgPageRect.height}px`,
-      boxSizing: 'border-box',
+      boxSizing: "border-box",
       border: `3px solid ${color}`,
-      pointerEvents: 'none',
-      zIndex: '9999'
+      pointerEvents: "none",
+      zIndex: "9999",
     });
 
     return border;
@@ -611,11 +718,13 @@
       includePerformanceSection = true,
       includeSourceMetadata = true,
       allowExternalPlacement = true,
-      precalculatedImageRects = null
+      precalculatedImageRects = null,
     } = options;
 
     if (clearAllOverlays) {
-      const existingOverlays = document.querySelectorAll('.image-details-overlay');
+      const existingOverlays = document.querySelectorAll(
+        ".image-details-overlay",
+      );
       existingOverlays.forEach((overlay) => overlay.remove());
       imageOverlayMap.delete(img);
       overlaidImages.clear();
@@ -632,75 +741,86 @@
     const renderedWidth = Math.round(imgRect.width);
     const renderedHeight = Math.round(imgRect.height);
 
-    const overlayContainer = document.createElement('div');
-    overlayContainer.className = 'image-details-overlay';
+    const overlayContainer = document.createElement("div");
+    overlayContainer.className = "image-details-overlay";
 
-    const infoBox = document.createElement('div');
-    infoBox.className = 'image-details-infobox';
+    const infoBox = document.createElement("div");
+    infoBox.className = "image-details-infobox";
 
     const hue = Math.floor(Math.random() * 360);
     const backgroundColor = `hsla(${hue}, 100%, 25%, 0.9)`;
 
     Object.assign(overlayContainer.style, {
-      position: 'absolute',
-      top: '0',
-      left: '0',
-      width: '0',
-      height: '0',
-      pointerEvents: 'none',
-      zIndex: '9999'
+      position: "absolute",
+      top: "0",
+      left: "0",
+      width: "0",
+      height: "0",
+      pointerEvents: "none",
+      zIndex: "9999",
     });
 
     Object.assign(infoBox.style, {
-      position: 'absolute',
-      padding: '8px',
+      position: "absolute",
+      padding: "8px",
       backgroundColor,
-      color: 'white',
-      fontSize: '12px',
-      fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
-      textAlign: 'left',
-      whiteSpace: 'normal',
-      borderRadius: '3px',
-      pointerEvents: 'none',
-      zIndex: '10000',
-      boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-      minWidth: '220px',
-      maxWidth: 'min(420px, calc(100vw - 16px))',
-      display: 'grid',
-      gap: '8px',
-      writingMode: 'horizontal-tb',
-      textOrientation: 'mixed',
-      direction: 'ltr',
-      lineHeight: '1.35'
+      color: "white",
+      fontSize: "12px",
+      fontFamily:
+        'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
+      textAlign: "left",
+      whiteSpace: "normal",
+      borderRadius: "3px",
+      pointerEvents: "none",
+      zIndex: "10000",
+      boxShadow: "0 2px 5px rgba(0,0,0,0.3)",
+      minWidth: "220px",
+      maxWidth: "min(420px, calc(100vw - 16px))",
+      display: "grid",
+      gap: "8px",
+      writingMode: "horizontal-tb",
+      textOrientation: "mixed",
+      direction: "ltr",
+      lineHeight: "1.35",
     });
 
     const intrinsicWidth = img.naturalWidth;
     const intrinsicHeight = img.naturalHeight;
 
-    const intrinsicRatioDetails = formatRatioDetails(intrinsicWidth, intrinsicHeight);
-    const renderedRatioDetails = formatRatioDetails(renderedWidth, renderedHeight);
+    const intrinsicRatioDetails = formatRatioDetails(
+      intrinsicWidth,
+      intrinsicHeight,
+    );
+    const renderedRatioDetails = formatRatioDetails(
+      renderedWidth,
+      renderedHeight,
+    );
 
-    const fileName = src.split('/').pop().split('?')[0].split('#')[0];
-    const imageMetrics = includePerformanceSection ? await getImageMetrics(src) : null;
-    const loadingStrategy = img.loading || 'auto';
-    const fetchPriority = img.getAttribute('fetchpriority') || 'auto';
+    const fileName = src.split("/").pop().split("?")[0].split("#")[0];
+    const imageMetrics = includePerformanceSection
+      ? await getImageMetrics(src)
+      : null;
+    const loadingStrategy = img.loading || "auto";
+    const fetchPriority = img.getAttribute("fetchpriority") || "auto";
 
     const createRow = (label, value, isPrimary = false) => {
-      const row = document.createElement('div');
+      const row = document.createElement("div");
       Object.assign(row.style, {
-        display: 'grid',
-        gridTemplateColumns: isPrimary ? 'max-content minmax(0, 1fr)' : 'max-content minmax(0, 1fr)',
-        columnGap: '4px',
-        alignItems: 'baseline'
+        display: "grid",
+        gridTemplateColumns: isPrimary
+          ? "max-content minmax(0, 1fr)"
+          : "max-content minmax(0, 1fr)",
+        columnGap: "4px",
+        alignItems: "baseline",
       });
 
-      const labelElement = document.createElement('span');
+      const labelElement = document.createElement("span");
       labelElement.textContent = label;
-      labelElement.style.fontWeight = '700';
+      labelElement.style.fontWeight = "700";
 
-      const valueElement = document.createElement('span');
+      const valueElement = document.createElement("span");
       valueElement.textContent = value;
-      valueElement.style.wordBreak = 'break-word';
+      valueElement.style.wordBreak = "break-word";
 
       row.appendChild(labelElement);
       row.appendChild(valueElement);
@@ -708,36 +828,36 @@
     };
 
     const createSection = () => {
-      const section = document.createElement('div');
+      const section = document.createElement("div");
       Object.assign(section.style, {
-        display: 'grid',
-        gap: '3px'
+        display: "grid",
+        gap: "3px",
       });
       return section;
     };
 
     const fileSection = createSection();
-    fileSection.appendChild(createRow('Filename', fileName || 'N/A', true));
+    fileSection.appendChild(createRow("Filename", fileName || "N/A", true));
 
     const createPerformanceGrid = (labelA, labelB, valueA, valueB) => {
-      const grid = document.createElement('div');
+      const grid = document.createElement("div");
       Object.assign(grid.style, {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        columnGap: '8px',
-        rowGap: '3px'
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        columnGap: "8px",
+        rowGap: "3px",
       });
 
       const makeCell = (text, isHeader = false) => {
-        const cell = document.createElement('div');
+        const cell = document.createElement("div");
         cell.textContent = text;
         if (isHeader) {
-          cell.style.fontWeight = '700';
-          cell.style.fontSize = '10px';
-          cell.style.textTransform = 'uppercase';
-          cell.style.color = 'rgba(255, 255, 255, 0.7)';
-          cell.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
-          cell.style.marginBottom = '2px';
+          cell.style.fontWeight = "700";
+          cell.style.fontSize = "10px";
+          cell.style.textTransform = "uppercase";
+          cell.style.color = "rgba(255, 255, 255, 0.7)";
+          cell.style.borderBottom = "1px solid rgba(255, 255, 255, 0.2)";
+          cell.style.marginBottom = "2px";
         }
         return cell;
       };
@@ -751,38 +871,64 @@
 
     const performanceSection = createSection();
     if (includePerformanceSection && imageMetrics) {
-      performanceSection.appendChild(createPerformanceGrid('Type', 'Size', imageMetrics.fileType, imageMetrics.fileSize));
-      performanceSection.appendChild(createPerformanceGrid('Loading', 'FetchPriority', loadingStrategy, fetchPriority));
+      performanceSection.appendChild(
+        createPerformanceGrid(
+          "Type",
+          "Size",
+          imageMetrics.fileType,
+          imageMetrics.fileSize,
+        ),
+      );
+      performanceSection.appendChild(
+        createPerformanceGrid(
+          "Loading",
+          "FetchPriority",
+          loadingStrategy,
+          fetchPriority,
+        ),
+      );
     }
 
-    const geometrySection = document.createElement('div');
+    const geometrySection = document.createElement("div");
     Object.assign(geometrySection.style, {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      columnGap: '8px',
-      rowGap: '3px'
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      columnGap: "8px",
+      rowGap: "3px",
     });
 
     const createGeometryCell = (text, isHeader = false) => {
-      const cell = document.createElement('div');
+      const cell = document.createElement("div");
       cell.textContent = text;
       if (isHeader) {
-        cell.style.fontWeight = '700';
-        cell.style.fontSize = '10px';
-        cell.style.textTransform = 'uppercase';
-        cell.style.color = 'rgba(255, 255, 255, 0.7)';
-        cell.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
-        cell.style.marginBottom = '2px';
+        cell.style.fontWeight = "700";
+        cell.style.fontSize = "10px";
+        cell.style.textTransform = "uppercase";
+        cell.style.color = "rgba(255, 255, 255, 0.7)";
+        cell.style.borderBottom = "1px solid rgba(255, 255, 255, 0.2)";
+        cell.style.marginBottom = "2px";
       }
       return cell;
     };
 
-    geometrySection.appendChild(createGeometryCell('Intrinsic', true));
-    geometrySection.appendChild(createGeometryCell('Rendered', true));
-    geometrySection.appendChild(createGeometryCell(`${intrinsicWidth}×${intrinsicHeight}`));
-    geometrySection.appendChild(createGeometryCell(`${renderedWidth}×${renderedHeight}`));
-    geometrySection.appendChild(createGeometryCell(`${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`));
-    geometrySection.appendChild(createGeometryCell(`${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`));
+    geometrySection.appendChild(createGeometryCell("Intrinsic", true));
+    geometrySection.appendChild(createGeometryCell("Rendered", true));
+    geometrySection.appendChild(
+      createGeometryCell(`${intrinsicWidth}×${intrinsicHeight}`),
+    );
+    geometrySection.appendChild(
+      createGeometryCell(`${renderedWidth}×${renderedHeight}`),
+    );
+    geometrySection.appendChild(
+      createGeometryCell(
+        `${intrinsicRatioDetails.ratioText} (${intrinsicRatioDetails.decimalText})`,
+      ),
+    );
+    geometrySection.appendChild(
+      createGeometryCell(
+        `${renderedRatioDetails.ratioText} (${renderedRatioDetails.decimalText})`,
+      ),
+    );
 
     infoBox.appendChild(fileSection);
     if (includePerformanceSection && performanceSection.childNodes.length > 0) {
@@ -792,16 +938,19 @@
 
     const occupiedRects = getOccupiedOverlayRects();
     const otherImageRects = precalculatedImageRects
-      ? precalculatedImageRects.filter((item) => item.img !== img).map((item) => item.rect)
+      ? precalculatedImageRects
+          .filter((item) => item.img !== img)
+          .map((item) => item.rect)
       : getAllImageRects(img);
 
     let layoutPreference = null;
     const parent = img.parentElement;
     if (parent) {
       const computed = window.getComputedStyle(parent);
-      if (computed.display === 'grid' || computed.display === 'flex') {
-        const isHorizontal = computed.flexDirection === 'row' || computed.display === 'grid';
-        layoutPreference = isHorizontal ? 'bottom' : 'right';
+      if (computed.display === "grid" || computed.display === "flex") {
+        const isHorizontal =
+          computed.flexDirection === "row" || computed.display === "grid";
+        layoutPreference = isHorizontal ? "bottom" : "right";
       }
     }
 
@@ -810,23 +959,33 @@
 
     const infoRect = infoBox.getBoundingClientRect();
     const placementResult = allowExternalPlacement
-      ? resolveInfoBoxPlacement(imgPageRect, infoRect.width, infoRect.height, occupiedRects, otherImageRects, layoutPreference)
+      ? resolveInfoBoxPlacement(
+          imgPageRect,
+          infoRect.width,
+          infoRect.height,
+          occupiedRects,
+          otherImageRects,
+          layoutPreference,
+        )
       : {
-        placement: 'top',
-        rect: {
-          left: imgPageRect.left,
-          top: imgPageRect.top,
-          right: imgPageRect.left + infoRect.width,
-          bottom: imgPageRect.top + infoRect.height
-        }
-      };
+          placement: "top",
+          rect: {
+            left: imgPageRect.left,
+            top: imgPageRect.top,
+            right: imgPageRect.left + infoRect.width,
+            bottom: imgPageRect.top + infoRect.height,
+          },
+        };
 
     const targetRect = placementResult.rect;
 
     infoBox.style.left = `${targetRect.left}px`;
     infoBox.style.top = `${targetRect.top}px`;
 
-    const associationBorder = createAssociationBorder(imgPageRect, backgroundColor);
+    const associationBorder = createAssociationBorder(
+      imgPageRect,
+      backgroundColor,
+    );
     overlayContainer.appendChild(associationBorder);
 
     if (trackOverlay) {
@@ -838,17 +997,26 @@
   }
 
   function clearAllOverlays() {
-    document.querySelectorAll('.image-details-overlay').forEach((overlay) => overlay.remove());
+    document
+      .querySelectorAll(".image-details-overlay")
+      .forEach((overlay) => overlay.remove());
     overlaidImages.clear();
   }
 
   window.imageDetailsAPI = {
     createOverlayForImage,
     clearAllOverlays,
-    parseAspectRatioValue
+    parseAspectRatioValue,
   };
 
-  async function processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, precalculatedImageRects = null) {
+  async function processImage(
+    img,
+    allowedTypes,
+    minSize,
+    aspectRatioMode,
+    aspectRatioValue,
+    precalculatedImageRects = null,
+  ) {
     if (!(img instanceof HTMLImageElement)) return;
 
     const rect = img.getBoundingClientRect();
@@ -858,15 +1026,27 @@
       img.naturalHeight || 0,
       Math.round(rect.width),
       Math.round(rect.height),
-      Math.round(rect.top + (window.pageYOffset || document.documentElement.scrollTop)),
-      Math.round(rect.left + (window.pageXOffset || document.documentElement.scrollLeft))
-    ].join('|');
+      Math.round(
+        rect.top + (window.pageYOffset || document.documentElement.scrollTop),
+      ),
+      Math.round(
+        rect.left + (window.pageXOffset || document.documentElement.scrollLeft),
+      ),
+    ].join("|");
 
     if (processedImageState.get(img) === currentSignature) {
       return;
     }
 
-    if (!shouldRenderOverlay(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue)) {
+    if (
+      !shouldRenderOverlay(
+        img,
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+      )
+    ) {
       const existingOverlay = imageOverlayMap.get(img);
       if (existingOverlay) {
         existingOverlay.remove();
@@ -881,7 +1061,13 @@
     processedImageState.set(img, currentSignature);
   }
 
-  async function refreshImages(images, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function refreshImages(
+    images,
+    allowedTypes,
+    minSize,
+    aspectRatioMode,
+    aspectRatioValue,
+  ) {
     const allImageRects = precalculateImageRects();
 
     const sortedImages = Array.from(images)
@@ -889,7 +1075,7 @@
         const found = allImageRects.find((item) => item.img === img);
         return {
           img,
-          rect: found ? found.rect : img.getBoundingClientRect()
+          rect: found ? found.rect : img.getBoundingClientRect(),
         };
       })
       .sort((a, b) => {
@@ -900,11 +1086,24 @@
       .map((item) => item.img);
 
     for (const img of sortedImages) {
-      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue, allImageRects);
+      await processImage(
+        img,
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+        allImageRects,
+      );
     }
   }
 
-  function scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, images = null) {
+  function scheduleRefresh(
+    allowedTypes,
+    minSize,
+    aspectRatioMode,
+    aspectRatioValue,
+    images = null,
+  ) {
     if (images === null) {
       refreshAllPending = true;
     } else {
@@ -918,11 +1117,21 @@
     refreshScheduled = true;
     window.requestAnimationFrame(() => {
       refreshScheduled = false;
-      void flushScheduledRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      void flushScheduledRefresh(
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+      );
     });
   }
 
-  async function flushScheduledRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function flushScheduledRefresh(
+    allowedTypes,
+    minSize,
+    aspectRatioMode,
+    aspectRatioValue,
+  ) {
     if (refreshInProgress) return;
 
     refreshInProgress = true;
@@ -930,14 +1139,26 @@
     try {
       while (refreshAllPending || pendingRefreshImages.size > 0) {
         if (refreshAllPending) {
-          await refreshImages(document.querySelectorAll('img'), allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+          await refreshImages(
+            document.querySelectorAll("img"),
+            allowedTypes,
+            minSize,
+            aspectRatioMode,
+            aspectRatioValue,
+          );
           refreshAllPending = false;
           pendingRefreshImages.clear();
           continue;
         }
 
         const imagesToRefresh = Array.from(pendingRefreshImages);
-        await refreshImages(imagesToRefresh, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+        await refreshImages(
+          imagesToRefresh,
+          allowedTypes,
+          minSize,
+          aspectRatioMode,
+          aspectRatioValue,
+        );
         for (const img of imagesToRefresh) {
           pendingRefreshImages.delete(img);
         }
@@ -946,23 +1167,47 @@
       refreshInProgress = false;
 
       if (refreshAllPending || pendingRefreshImages.size > 0) {
-        scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, []);
+        scheduleRefresh(
+          allowedTypes,
+          minSize,
+          aspectRatioMode,
+          aspectRatioValue,
+          [],
+        );
       }
     }
   }
 
-  async function processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function processAddedNode(
+    node,
+    allowedTypes,
+    minSize,
+    aspectRatioMode,
+    aspectRatioValue,
+  ) {
     if (!(node instanceof Element)) return;
 
     if (node instanceof HTMLImageElement) {
-      await processImage(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      await processImage(
+        node,
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+      );
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(node);
       }
     }
 
-    for (const img of node.querySelectorAll('img')) {
-      await processImage(img, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+    for (const img of node.querySelectorAll("img")) {
+      await processImage(
+        img,
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+      );
       if (window.imageDetailsResizeObserver) {
         window.imageDetailsResizeObserver.observe(img);
       }
@@ -991,21 +1236,42 @@
       cleanupRemovedImage(node);
     }
 
-    node.querySelectorAll('img').forEach((img) => cleanupRemovedImage(img));
+    node.querySelectorAll("img").forEach((img) => cleanupRemovedImage(img));
   }
 
-  async function handleMutations(mutations, allowedTypes, minSize, aspectRatioMode, aspectRatioValue) {
+  async function handleMutations(
+    mutations,
+    allowedTypes,
+    minSize,
+    aspectRatioMode,
+    aspectRatioValue,
+  ) {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
-        await processAddedNode(node, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+        await processAddedNode(
+          node,
+          allowedTypes,
+          minSize,
+          aspectRatioMode,
+          aspectRatioValue,
+        );
       }
 
       for (const node of mutation.removedNodes) {
         cleanupRemovedNode(node);
       }
 
-      if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
-        await processImage(mutation.target, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      if (
+        mutation.type === "attributes" &&
+        mutation.target instanceof HTMLImageElement
+      ) {
+        await processImage(
+          mutation.target,
+          allowedTypes,
+          minSize,
+          aspectRatioMode,
+          aspectRatioValue,
+        );
       }
     }
   }
@@ -1017,29 +1283,43 @@
     return;
   }
 
-  chrome.storage.local.get('filterSettings', function (result) {
+  chrome.storage.local.get("filterSettings", function (result) {
     const settings = result.filterSettings || {};
     const allowedTypes = Array.isArray(settings.allowedTypes)
       ? settings.allowedTypes
-        .map(normalizeImageType)
-        .filter((type) => FILTERABLE_IMAGE_TYPES.has(type))
+          .map(normalizeImageType)
+          .filter((type) => FILTERABLE_IMAGE_TYPES.has(type))
       : null;
     const minSize = settings.minSize || 0;
-    const aspectRatioMode = ASPECT_RATIO_FILTER_MODES.has(settings.aspectRatioMode)
+    const aspectRatioMode = ASPECT_RATIO_FILTER_MODES.has(
+      settings.aspectRatioMode,
+    )
       ? settings.aspectRatioMode
-      : 'any';
+      : "any";
     const aspectRatioValue = ASPECT_RATIO_OPTIONS.has(settings.aspectRatioValue)
       ? settings.aspectRatioValue
-      : '1:1';
+      : "1:1";
 
-    scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, null);
+    scheduleRefresh(
+      allowedTypes,
+      minSize,
+      aspectRatioMode,
+      aspectRatioValue,
+      null,
+    );
 
     if (window.imageDetailsObserver) {
       window.imageDetailsObserver.disconnect();
     }
 
     window.imageDetailsObserver = new MutationObserver((mutations) => {
-      void handleMutations(mutations, allowedTypes, minSize, aspectRatioMode, aspectRatioValue);
+      void handleMutations(
+        mutations,
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+      );
     });
 
     if (document.body) {
@@ -1047,7 +1327,7 @@
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['src', 'srcset']
+        attributeFilter: ["src", "srcset"],
       });
     }
 
@@ -1056,18 +1336,31 @@
     }
 
     window.imageDetailsResizeObserver = new ResizeObserver(() => {
-      scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, overlaidImages);
+      scheduleRefresh(
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+        overlaidImages,
+      );
     });
 
-    for (const img of document.querySelectorAll('img')) {
+    for (const img of document.querySelectorAll("img")) {
       window.imageDetailsResizeObserver.observe(img);
     }
 
     if (window.imageDetailsResizeHandler) {
-      window.removeEventListener('resize', window.imageDetailsResizeHandler);
+      window.removeEventListener("resize", window.imageDetailsResizeHandler);
     }
 
-    window.imageDetailsResizeHandler = () => scheduleRefresh(allowedTypes, minSize, aspectRatioMode, aspectRatioValue, overlaidImages);
-    window.addEventListener('resize', window.imageDetailsResizeHandler);
+    window.imageDetailsResizeHandler = () =>
+      scheduleRefresh(
+        allowedTypes,
+        minSize,
+        aspectRatioMode,
+        aspectRatioValue,
+        overlaidImages,
+      );
+    window.addEventListener("resize", window.imageDetailsResizeHandler);
   });
 })();
