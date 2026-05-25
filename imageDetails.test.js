@@ -70,6 +70,7 @@ global.TextEncoder = class {
 global.fetch = () => Promise.resolve({ ok: false });
 
 // Load the script
+require('./imageUtils.js');
 require('./imageDetails.js');
 
 const { parseAspectRatioValue } = window.imageDetailsAPI;
